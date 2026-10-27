@@ -1,0 +1,16 @@
+meta {
+  name: Contributor detail
+  type: http
+  seq: 31
+}
+
+get {
+  url: {{baseUrl}}/community/contributors/{{login}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{devToken}}
+  Content-Type: application/json
+}

@@ -1,0 +1,30 @@
+name: guardrail-eval
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/api/src/modules/ai/**"
+      - "apps/api/src/modules/guide/**"
+      - "docs/Sprints/sprint3/02-testing.md"
+      - ".github/workflows/guardrail.yml"
+  pull_request:
+    paths:
+      - "apps/api/src/modules/ai/**"
+      - "apps/api/src/modules/guide/**"
+      - "docs/Sprints/sprint3/02-testing.md"
+      - ".github/workflows/guardrail.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm guardrail:eval

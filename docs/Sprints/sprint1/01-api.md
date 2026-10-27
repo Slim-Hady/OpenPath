@@ -2,7 +2,7 @@
 
 > Back to [sprint specification](00-sprint.md) · [testing](02-testing.md) · [review](03-review.md)
 
-Status: **Endpoints are to be defined in this sprint.** Replace every `TBD` with the real method and path before implementation, then run the manual checklist.
+Status: **defined and shipped.** The table matches the implementation; run the manual checklist against the demo stack.
 
 Global conventions (base URL, auth header, error shape, pagination) live in [`../../API.md`](../../API.md). Define them once and keep them consistent here.
 
@@ -10,23 +10,26 @@ Global conventions (base URL, auth header, error shape, pagination) live in [`..
 
 | ID | Method | Path | Auth | Purpose | Request | Response | Errors |
 |---|---|---|---|---|---|---|---|
-| A1.1 | TBD | TBD | Public | Sign up with email | name, email, password | User + session | 400 invalid, 409 duplicate email |
-| A1.2 | TBD | TBD | Public | GitHub OAuth callback / sign up | OAuth code + state | User + session or link | 400 invalid state |
-| A1.3 | TBD | TBD | Public | Log in with email and password | email, password | Session | 401 wrong credentials |
-| A1.4 | TBD | TBD | Session | Log out | session/token | 204 / success | 401 no session |
-| A1.5 | TBD | TBD | Public | Request password reset | email | 202 accepted | 400 invalid email |
-| A1.6 | TBD | TBD | Public | Confirm password reset | reset token, new password | Success | 400 expired/invalid token |
-| A1.7 | TBD | TBD | Developer | Connect GitHub account | OAuth code + state | Connection status | 400 state, 409 already linked |
-| A1.8 | TBD | TBD | Developer | Disconnect GitHub account | — | Success | 403 not owner |
-| A1.9 | TBD | TBD | Session | Get my profile and developer profile | — | Profile object | 401 no session |
-| A1.10 | TBD | TBD | Session | Update account profile and password | name, username, bio, avatar, password | Updated profile | 400 duplicate username, 400 weak password |
-| A1.11 | TBD | TBD | Developer | Update skills, experience level and languages | skills, level, languages | Updated developer profile | 400 invalid level/language |
-| A1.12 | TBD | TBD | Developer | Upload or replace CV | multipart file | File id + status | 400 type/size, 413 too large |
-| A1.13 | TBD | TBD | Developer | Get CV extraction status and results | — | Status + extracted skills | 403 not owner |
-| A1.14 | TBD | TBD | Admin | Get AI settings | — | Settings | 403 not Admin |
-| A1.15 | TBD | TBD | Admin | Update AI settings | max tokens, temperature, usage limit | Updated settings | 400 invalid values, 403 not Admin |
-| A1.16 | TBD | TBD | Session | List my notifications | — | Notifications | 401 no session |
-| A1.17 | TBD | TBD | Session | Mark a notification as read | notification id | Read state | 403 not owner, 404 missing |
+| A1.1 | POST | \(Supabase\) `/auth/v1/signup` | Public | Sign up with email | name (metadata), email, password | session or confirm-email | 400 invalid, 409 duplicate email |
+| A1.2 | GET | `/auth/callback` (web) + Supabase | Public | GitHub OAuth return | `code` | session + provider token | 400 missing code |
+| A1.3 | POST | \(Supabase\) `/auth/v1/token?grant_type=password` | Public | Log in | email, password | session | 401 wrong credentials |
+| A1.4 | POST | \(Supabase\) `/auth/v1/logout` | Session | Log out | — | 204 | 401 |
+| A1.5 | POST | \(Supabase\) `/auth/v1/recover` | Public | Request reset | email | 200 | 400 invalid email |
+| A1.6 | PUT | \(Supabase\) `/auth/v1/user` | Recovery session | Set new password | password | user | 400 expired/invalid |
+| A1.7 | POST | `/github/connect` | Developer | Encrypt provider token | providerToken | GithubConnection | 400 invalid token |
+| A1.8 | DELETE | `/github` | Developer | Disconnect | — | `{ok:true}` | 401 |
+| A1.9 | GET | `/me`, `/profile` | Session | My account + profile | — | Me, Profile | 401 |
+| A1.10 | PATCH | `/me` | Session | Name/username/bio/avatar | UpdateMe | Me | 400, 409 username |
+| A1.11 | PUT | `/profile` | Developer | Level/languages/skills | UpdateProfile | Profile | 400 |
+| A1.12 | POST | `/cv` | Developer | Upload/replace CV | multipart `file` | CvFile PENDING | 400 type, 413 size, 503 storage/queue |
+| A1.13 | GET | `/cv` | Developer | CV status + extraction | — | CvFile or null | 401 |
+| A1.14 | GET | `/admin/ai-settings` | Admin | Current AI settings | — | AiSettings | 403 |
+| A1.15 | PUT | `/admin/ai-settings` | Admin | Update AI settings | UpdateAiSettings | AiSettings | 400, 403 |
+| A1.16 | GET | `/notifications` | Session | List notifications | page, perPage | NotificationList | 401 |
+| A1.17 | PATCH | `/notifications/:id/read` | Session | Mark read | — | NotificationDto | 403/404, 404 not owner |
+| A1.18 | GET | `/github/status` | Developer | GitHub connection state | — | GithubConnection | 401 |
+| A1.19 | POST | `/cv/:id/retry` | Developer | Retry failed extraction | — | CvFile | 403/404, 503 |
+| A1.20 | POST | `/profile/complete-check` | Developer | Gate before matching | — | `{complete:true, profile}` | 409 incomplete |
 
 ## 2. Manual API test checklist
 

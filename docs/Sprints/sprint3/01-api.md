@@ -2,7 +2,7 @@
 
 > Back to [sprint specification](00-sprint.md) · [testing](02-testing.md) · [review](03-review.md)
 
-Status: **Endpoints are to be defined in this sprint.** Replace every `TBD` with the real method and path before implementation, then run the manual checklist.
+Status: **defined and shipped.** The table matches the implementation; run the manual checklist against the demo stack.
 
 Global conventions (base URL, auth header, error shape, pagination) live in [`../../API.md`](../../API.md). Define them once and keep them consistent here.
 
@@ -10,12 +10,13 @@ Global conventions (base URL, auth header, error shape, pagination) live in [`..
 
 | ID | Method | Path | Auth | Purpose | Request | Response | Errors |
 |---|---|---|---|---|---|---|---|
-| A3.1 | TBD | TBD | Developer | Get repository onboarding | selected issue id | Overview, setup, PR guidance | 404 not selected, 403 not owner |
-| A3.2 | TBD | TBD | Developer | Get issue onboarding | selected issue id | Summary, requirements, related code, resources | 404 not selected |
-| A3.3 | TBD | TBD | Developer | Start or resume an issue chat | selected issue id | Conversation + history | 403 not owner |
-| A3.4 | TBD | TBD | Developer | Send an AI guide message | message, conversation id | Reply + usage | 429 limit reached, 503 AI unavailable |
-| A3.5 | TBD | TBD | Developer | Get progress dashboard | — | Selected issues, statuses, counts | 401 no session |
-| A3.6 | TBD | TBD | Developer | Update progress status and PR link | status, PR URL | Updated progress + event | 400 invalid status/URL, 403 not owner |
+| A3.1 | GET | `/onboarding/repository/:issueId` | Developer | Repo overview/setup/PR | — | RepositoryOnboarding | 404 not selected |
+| A3.2 | GET | `/onboarding/issue/:issueId` | Developer | Issue summary/requirements | — | IssueOnboarding | 404 not selected |
+| A3.3 | GET | `/guide/conversations/:issueId` | Developer | Start/resume chat | — | GuideConversation | 403/404 |
+| A3.4 | POST | `/guide/conversations/:issueId/messages` | Developer | Send message | `{content}` | GuideReply | 403, 429 limit, 503 AI |
+| A3.5 | GET | `/progress` | Developer | Dashboard + counts | — | ProgressSummary | 401 |
+| A3.6 | PATCH | `/progress/:id` | Developer | Status + PR link | `{status, prUrl?, note?}` | Selection | 400, 403/404, 409 merged |
+| A3.7 | POST | `/progress/sync` | Developer | Enqueue a manual sync | — | `{ok:true}` | 503 queue |
 
 ## 2. Manual API test checklist
 

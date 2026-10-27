@@ -9,13 +9,15 @@ RUN corepack enable
 WORKDIR /app
 
 FROM base AS deps
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY packages/contracts/package.json packages/contracts/tsconfig.json packages/contracts/
+COPY packages/contracts/src packages/contracts/src
 COPY apps/web/package.json apps/web/
-COPY packages/contracts/package.json packages/contracts/
 RUN pnpm install --frozen-lockfile
 
 FROM deps AS build
 COPY . .
+RUN rm -f apps/web/.env.local apps/api/.env
 RUN pnpm --filter @osh/contracts build \
  && pnpm --filter @osh/web build
 

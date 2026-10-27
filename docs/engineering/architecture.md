@@ -27,6 +27,8 @@ flowchart TB
 
 At the target scale (≈2,000 users) this runs on one host: 1 `web`, 1 `api`, 1 `worker`, 1 Redis, managed Postgres.
 
+In the **demo compose** a local Postgres service substitutes for the managed one so the golden path does not depend on a free project staying awake; Supabase still supplies Auth and Storage. Production uses the Supabase poolers. See `decisions/0006-local-postgres.md`.
+
 ## 2. Request flow
 
 1. The browser calls `web`. Session cookies are set on the `web` origin only.
@@ -66,7 +68,7 @@ Retries: 3, exponential backoff, then dead-letter. A repeated GitHub event must 
 |---|---|
 | Issue ranking | rules pre-filter (≤20 candidates) → Gemini JSON `{issueId, rank, reason}` → validate ids → deterministic fallback on timeout/invalid |
 | Onboarding | one structured call per repository/issue, cached by repo + commit sha and issue `updated_at` |
-| AI guide | per-issue context + history, streamed, token-metered per message |
+| AI guide | per-issue context + history, non-streaming JSON under an 8s budget, token-metered per message; SSE is deferred |
 
 Guardrail: system prompt + output post-filter (reject fenced code, diffs, step-by-step implementations) + `docs/Sprints/sprint3/02-testing.md` eval suite. Every AI call writes a usage row (feature, tokens, model, userId) **before** returning.
 

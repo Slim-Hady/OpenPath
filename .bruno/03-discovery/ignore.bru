@@ -1,0 +1,20 @@
+meta {
+  name: Ignore issue
+  type: http
+  seq: 15
+}
+
+post {
+  url: {{baseUrl}}/discovery/ignore
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{devToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {"issueId":"REPLACE_WITH_ISSUE_ID"}
+}

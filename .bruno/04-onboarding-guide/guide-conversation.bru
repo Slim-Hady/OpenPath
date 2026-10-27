@@ -1,0 +1,16 @@
+meta {
+  name: Guide conversation
+  type: http
+  seq: 18
+}
+
+get {
+  url: {{baseUrl}}/guide/conversations/{{issueId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{devToken}}
+  Content-Type: application/json
+}

@@ -1,0 +1,16 @@
+meta {
+  name: Public profile settings
+  type: http
+  seq: 28
+}
+
+get {
+  url: {{baseUrl}}/public-profile/settings
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{devToken}}
+  Content-Type: application/json
+}

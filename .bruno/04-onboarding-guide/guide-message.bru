@@ -1,0 +1,20 @@
+meta {
+  name: Guide message
+  type: http
+  seq: 19
+}
+
+post {
+  url: {{baseUrl}}/guide/conversations/{{issueId}}/messages
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{devToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {"content":"How should I investigate this issue?"}
+}

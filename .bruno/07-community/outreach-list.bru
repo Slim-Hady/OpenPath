@@ -1,0 +1,16 @@
+meta {
+  name: Outreach list
+  type: http
+  seq: 32
+}
+
+get {
+  url: {{baseUrl}}/outreach
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{devToken}}
+  Content-Type: application/json
+}

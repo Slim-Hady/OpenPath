@@ -1,0 +1,6 @@
+{
+  "version": "1",
+  "name": "OpenSource-helper API",
+  "type": "collection",
+  "ignore": ["node_modules", ".git"]
+}

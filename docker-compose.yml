@@ -1,12 +1,34 @@
 name: opensource-helper
 
-# Postgres, Auth and Storage are managed by Supabase (set in .env).
-# Local compose runs the application containers plus Redis.
+# The demo stack is self-contained for Postgres and Redis. Supabase still
+# provides Auth and Storage; GitHub, Gemini and Resend are called by the API.
+# For production, point DATABASE_URL/DIRECT_URL at Supabase and remove the
+# postgres/migrate services. Recorded in decisions/0006.
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-osh}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-osh_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-osh}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-osh} -d ${POSTGRES_DB:-osh}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
   redis:
     image: redis:7-alpine
     command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis-data:/data
     healthcheck:
@@ -16,6 +38,28 @@ services:
       retries: 5
     restart: unless-stopped
 
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-osh}:${POSTGRES_PASSWORD:-osh_dev_password}@postgres:5432/${POSTGRES_DB:-osh}
+      DIRECT_URL: postgresql://${POSTGRES_USER:-osh}:${POSTGRES_PASSWORD:-osh_dev_password}@postgres:5432/${POSTGRES_DB:-osh}
+    command:
+      [
+        "node",
+        "apps/api/node_modules/prisma/build/index.js",
+        "migrate",
+        "deploy",
+        "--schema",
+        "apps/api/prisma/schema.prisma",
+      ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   api:
     build:
       context: .
@@ -24,11 +68,24 @@ services:
     environment:
       PORT: 4000
       REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://${POSTGRES_USER:-osh}:${POSTGRES_PASSWORD:-osh_dev_password}@postgres:5432/${POSTGRES_DB:-osh}
+      DIRECT_URL: postgresql://${POSTGRES_USER:-osh}:${POSTGRES_PASSWORD:-osh_dev_password}@postgres:5432/${POSTGRES_DB:-osh}
+      ENABLE_SCHEDULER: "true"
     ports:
       - "4000:4000"
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     restart: unless-stopped
 
   worker:
@@ -39,24 +96,53 @@ services:
     env_file: .env
     environment:
       REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://${POSTGRES_USER:-osh}:${POSTGRES_PASSWORD:-osh_dev_password}@postgres:5432/${POSTGRES_DB:-osh}
+      DIRECT_URL: postgresql://${POSTGRES_USER:-osh}:${POSTGRES_PASSWORD:-osh_dev_password}@postgres:5432/${POSTGRES_DB:-osh}
+      ENABLE_SCHEDULER: "false"
     depends_on:
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://api:4000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
 
   web:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
-    env_file: .env
     environment:
+      PORT: 3000
       API_URL: http://api:4000
       NEXT_PUBLIC_APP_URL: http://localhost:3000
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
     ports:
       - "3000:3000"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     restart: unless-stopped
 
 volumes:
+  postgres-data:
   redis-data:

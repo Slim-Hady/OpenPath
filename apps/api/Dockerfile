@@ -8,13 +8,15 @@ RUN corepack enable
 WORKDIR /app
 
 FROM base AS deps
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY packages/contracts/package.json packages/contracts/tsconfig.json packages/contracts/
+COPY packages/contracts/src packages/contracts/src
 COPY apps/api/package.json apps/api/
-COPY packages/contracts/package.json packages/contracts/
 RUN pnpm install --frozen-lockfile
 
 FROM deps AS build
 COPY . .
+RUN rm -f apps/web/.env.local apps/api/.env
 RUN pnpm --filter @osh/contracts build \
  && pnpm --filter @osh/api exec prisma generate \
  && pnpm --filter @osh/api build
@@ -28,6 +30,7 @@ COPY --from=build --chown=app:app /app/apps/api/node_modules ./apps/api/node_mod
 COPY --from=build --chown=app:app /app/apps/api/dist ./apps/api/dist
 COPY --from=build --chown=app:app /app/apps/api/prisma ./apps/api/prisma
 COPY --from=build --chown=app:app /app/apps/api/package.json ./apps/api/package.json
+COPY --from=build --chown=app:app /app/packages/contracts ./packages/contracts
 USER app
 EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=3s --retries=3 \

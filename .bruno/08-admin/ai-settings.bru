@@ -1,0 +1,16 @@
+meta {
+  name: AI settings
+  type: http
+  seq: 36
+}
+
+get {
+  url: {{baseUrl}}/admin/ai-settings
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+  Content-Type: application/json
+}

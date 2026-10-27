@@ -2,7 +2,7 @@
 
 > Back to [sprint specification](00-sprint.md) · [testing](02-testing.md) · [review](03-review.md)
 
-Status: **Endpoints are to be defined in this sprint.** Replace every `TBD` with the real method and path before implementation, then run the manual checklist.
+Status: **defined and shipped.** The table matches the implementation; run the manual checklist against the demo stack.
 
 Global conventions (base URL, auth header, error shape, pagination) live in [`../../API.md`](../../API.md). Define them once and keep them consistent here.
 
@@ -10,17 +10,17 @@ Global conventions (base URL, auth header, error shape, pagination) live in [`..
 
 | ID | Method | Path | Auth | Purpose | Request | Response | Errors |
 |---|---|---|---|---|---|---|---|
-| A5.1 | TBD | TBD | Developer | Get and update my public profile settings | visibility, published | Profile settings | 401 no session |
-| A5.2 | TBD | TBD | Public | Get a public contribution profile by link | handle/link | Visible sections only | 404 private/unknown |
-| A5.3 | TBD | TBD | Developer | Publish or unpublish my profile and copy the link | published flag | Public link | 400 invalid handle |
-| A5.4 | TBD | TBD | Developer/Maintainer | Search contributors by organization, repository, language or topic | org, repo, language, topic | Ranked contributors | 400 missing org/repo, 429 rate limit |
-| A5.5 | TBD | TBD | Developer/Maintainer | Get contributor activity and expertise | contributor id/login | Merged PRs, commits, reviews, expertise | 404 contributor not found |
-| A5.6 | TBD | TBD | Developer/Maintainer | Send an outreach request | recipient, type, message | Request sent | 403 not opted in, 429 rate limit, 403 blocked |
-| A5.7 | TBD | TBD | Session | Accept, decline or block an outreach request | request id, action | Updated status | 403 not recipient, 404 missing |
-| A5.8 | TBD | TBD | Session | List sent and received requests | — | Requests with statuses | 401 no session |
-| A5.9 | TBD | TBD | Session | Get and send messages in an accepted conversation | conversation id, message | Stored messages | 403 not participant, 409 not accepted |
-| A5.10 | TBD | TBD | Public | Search learning resources by topic | query | Matching resources / empty state | 400 empty query |
-| A5.11 | TBD | TBD | Admin | Get AI settings against usage | — | Settings + usage vs limit | 403 not Admin |
+| A5.1 | GET/PUT | `/public-profile/settings` | Developer | Visibility/publish settings | UpdatePublicProfile | PublicProfileSettings | 400, 409 handle |
+| A5.2 | GET | `/public/profiles/:handle` | Public | Visible sections only | — | PublicProfile | 404 private/unknown |
+| A5.3 | POST | `/public-profile/publish` | Developer | Publish/unpublish | `{published}` | PublicProfileSettings | 400 |
+| A5.4 | GET | `/community/contributors` | Developer/Maintainer | Search contributors | org\|repo, language, topic | ContributorSearchResponse | 400, 429 |
+| A5.5 | GET | `/community/contributors/:login` | Developer/Maintainer | Activity/expertise | — | ContributorDetail | 404 |
+| A5.6 | POST | `/outreach` | Developer/Maintainer | Send request | `{recipientId,type,message}` | OutreachRequest | 403 not opted/blocked, 429 |
+| A5.7 | PATCH | `/outreach/:id` | Session | Accept/decline/block | `{action}` | OutreachRequest | 403, 404, 409 |
+| A5.8 | GET | `/outreach` | Session | Sent + received | — | OutreachList | 401 |
+| A5.9 | GET/POST | `/outreach/:id/conversation[/messages]` | Session | Read/send messages | `{body}` | OutreachConversation | 403, 404, 409 not accepted |
+| A5.10 | GET | `/learning` | Public | Topic search | q, topic | LearningSearchResponse | 400 empty q |
+| A5.11 | GET | `/admin/ai-settings/usage` | Admin | Settings vs usage | — | `{settings, usage}` | 403 |
 
 ## 2. Manual API test checklist
 

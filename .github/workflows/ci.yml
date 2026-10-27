@@ -11,6 +11,7 @@ on:
       - "pnpm-workspace.yaml"
       - "tsconfig*.json"
       - "docker-compose*.yml"
+      - ".github/workflows/ci.yml"
   pull_request:
     paths:
       - "apps/**"
@@ -20,42 +21,105 @@ on:
       - "pnpm-workspace.yaml"
       - "tsconfig*.json"
       - "docker-compose*.yml"
+      - ".github/workflows/ci.yml"
+
+permissions:
+  contents: read
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  NODE_OPTIONS: --max-old-space-size=2048
+
 jobs:
-  verify:
+  lint-typecheck:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
       - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
+        with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
-
-      - name: Prisma generate
-        run: pnpm --filter @osh/api exec prisma generate
-
+      - run: pnpm --filter @osh/api exec prisma generate
       - run: pnpm lint
       - run: pnpm typecheck
-      - run: pnpm test
-      - run: pnpm build
 
-      - name: Validate compose file
-        run: docker compose config --quiet
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @osh/contracts test
+
+  test-api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @osh/api test -- --runInBand
+
+  test-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @osh/web test -- --maxWorkers=2
+
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: osh
+          POSTGRES_PASSWORD: osh_dev_password
+          POSTGRES_DB: osh_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U osh -d osh_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      NODE_ENV: test
+      AUTH_DEV_MODE: "true"
+      DATABASE_URL: postgresql://osh:osh_dev_password@localhost:5432/osh_test
+      DIRECT_URL: postgresql://osh:osh_dev_password@localhost:5432/osh_test
+      TEST_DATABASE_URL: postgresql://osh:osh_dev_password@localhost:5432/osh_test
+      REDIS_URL: redis://localhost:6379
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-anon-key-not-a-secret
+      SUPABASE_SERVICE_ROLE_KEY: ci-service-role-not-a-secret
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      GITHUB_TOKEN_ENC_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @osh/api exec prisma generate
+      - run: pnpm --filter @osh/api exec prisma migrate deploy
+      - run: pnpm --filter @osh/api test:integration -- --runInBand
 
   docker-build:
     runs-on: ubuntu-latest
-    needs: verify
+    needs: [lint-typecheck]
     strategy:
       matrix:
         include:
@@ -65,9 +129,7 @@ jobs:
             dockerfile: apps/api/Dockerfile
     steps:
       - uses: actions/checkout@v4
-
       - uses: docker/setup-buildx-action@v3
-
       - name: Build image (no push)
         uses: docker/build-push-action@v6
         with:

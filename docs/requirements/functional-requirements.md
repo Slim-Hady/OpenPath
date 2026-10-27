@@ -1,5 +1,7 @@
 # **2. Functional Requirements** 
 
+> Implementation status: all FRs shipped; see `docs/features/README.md` for the file map, contract, tests and known limits per FR.
+
 ### **FR-1: Manage Authentication** 
 
 _Owner:_ All users. _Linked to:_ CR-4 

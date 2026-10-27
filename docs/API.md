@@ -1,24 +1,28 @@
 # API Contract
 
-Status: **Conventions TBD; endpoints are defined per sprint.**
+Status: **conventions shipped; endpoints are defined per sprint.**
 
-This file holds the global conventions. Each sprint owns its endpoint contract and manual test checklist in `Sprints/sprintN/01-api.md`. Define an endpoint there before implementing it.
+Global conventions live here. Each sprint owns its endpoint table and manual
+checklist in `Sprints/sprintN/01-api.md`.
 
-## Conventions (TBD)
+## Conventions
 
 | Topic | Decision |
 |---|---|
-| Base URL | TBD |
-| Versioning | TBD |
-| Authentication | TBD (session or token; GitHub OAuth flow) |
-| Authorization | Roles: Developer, Maintainer, Admin |
-| Request format | TBD |
-| Response format | TBD |
-| Error format | TBD |
-| Pagination | TBD |
-| Rate limits | TBD |
-| Date/time format | TBD |
-| File uploads | TBD (CV: allowed types, max size) |
+| Base URL | Direct: `http://localhost:4000`. Browser: same-origin `/api/*`, proxied by `apps/web/app/api/[...path]/route.ts`. |
+| Versioning | No path version for the course build; contracts are versioned in `packages/contracts` and breaking changes require a new schema + migration note. |
+| Authentication | Supabase access token in `Authorization: Bearer <jwt>`. Verified via JWKS (ES256). `AUTH_DEV_MODE` accepts `dev:<seeded-email>` only outside production. |
+| Authorization | Roles `DEVELOPER`, `MAINTAINER`, `ADMIN`. Global guard + `@Roles` + service-level ownership. |
+| Request format | JSON (`application/json`) except CV `multipart/form-data` with field `file`. |
+| Response format | JSON validated by Zod. Lists include `page`/`perPage`; notifications include `total`. |
+| Error format | `{ statusCode, code, message, requestId?, details? }`. `code` is stable (`VALIDATION_ERROR`, `UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`, `LIMIT_REACHED`, `AI_UNAVAILABLE`, …). |
+| Pagination | `page` (1-based) and `perPage` (max 100) for notifications; discovery uses GitHub page/per_page internally. |
+| Rate limits | 180 requests/min/IP default; AI is capped per user/month and platform USD; outreach is 5/day; auth is Supabase-managed. |
+| Date/time | ISO 8601 UTC strings. |
+| File uploads | PDF or DOCX, ≤5 MB, magic-byte checked, private `cvs` bucket, signed/owner-only download. |
+| Request ID | `x-request-id` echoed; logs contain userId/requestId, never tokens. |
+| CORS | None. The browser only calls the web origin. |
+| Health | `GET /health` liveness; `GET /health/ready` database readiness and a Redis check in the body. |
 
 ## Sprint contracts
 

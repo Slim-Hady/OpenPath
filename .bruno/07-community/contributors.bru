@@ -1,0 +1,16 @@
+meta {
+  name: Contributor search
+  type: http
+  seq: 30
+}
+
+get {
+  url: {{baseUrl}}/community/contributors?repo=octocat/Hello-World
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{devToken}}
+  Content-Type: application/json
+}

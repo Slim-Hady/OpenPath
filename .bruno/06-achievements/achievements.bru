@@ -1,0 +1,16 @@
+meta {
+  name: Achievements
+  type: http
+  seq: 27
+}
+
+get {
+  url: {{baseUrl}}/achievements
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{devToken}}
+  Content-Type: application/json
+}

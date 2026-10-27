@@ -1,0 +1,16 @@
+meta {
+  name: Notifications
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{baseUrl}}/notifications?perPage=10
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{devToken}}
+  Content-Type: application/json
+}

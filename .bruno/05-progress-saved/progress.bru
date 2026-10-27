@@ -1,0 +1,16 @@
+meta {
+  name: Progress
+  type: http
+  seq: 20
+}
+
+get {
+  url: {{baseUrl}}/progress
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{devToken}}
+  Content-Type: application/json
+}

@@ -1,0 +1,16 @@
+meta {
+  name: Progress history
+  type: http
+  seq: 21
+}
+
+get {
+  url: {{baseUrl}}/progress/{{selectionId}}/history
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{devToken}}
+  Content-Type: application/json
+}
