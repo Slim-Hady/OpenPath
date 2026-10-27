@@ -27,6 +27,9 @@ Global conventions (base URL, auth header, error shape, pagination) live in [`..
 | A1.15 | PUT | `/admin/ai-settings` | Admin | Update AI settings | UpdateAiSettings | AiSettings | 400, 403 |
 | A1.16 | GET | `/notifications` | Session | List notifications | page, perPage | NotificationList | 401 |
 | A1.17 | PATCH | `/notifications/:id/read` | Session | Mark read | — | NotificationDto | 403/404, 404 not owner |
+| A1.18 | GET | `/github/status` | Developer | GitHub connection state | — | GithubConnection | 401 |
+| A1.19 | POST | `/cv/:id/retry` | Developer | Retry failed extraction | — | CvFile | 403/404, 503 |
+| A1.20 | POST | `/profile/complete-check` | Developer | Gate before matching | — | `{complete:true, profile}` | 409 incomplete |
 
 ## 2. Manual API test checklist
 

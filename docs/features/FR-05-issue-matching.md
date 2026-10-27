@@ -25,23 +25,8 @@ FR-5.1–5.11. Acceptance: three highest-ranked unique issues; repository detail
 
 ## 5. Sequence diagram
 
-```mermaid
-sequenceDiagram
-  autonumber
-  participant U as Developer/Admin
-  participant W as Next web
-  participant A as Nest API
-  participant D as Postgres
-  participant X as External
-  U->>W: Rank three issues
-  W->>A: request + Bearer access token
-  A->>A: verify JWT, role, ownership
-  A->>D: read/write owned rows
-  A->>X: provider call (only when needed)
-  X-->>A: bounded result
-  A-->>W: Zod-shaped response
-  W-->>U: screen state
-```
+Canonical sequence: [ranking](../engineering/diagrams/sequences/02-discovery-ranking.md).
+The diagram is the source of truth for this flow and maps to the files above.
 
 ## 6. Data
 

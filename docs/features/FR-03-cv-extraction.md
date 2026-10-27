@@ -25,23 +25,8 @@ FR-3.1–3.11. Acceptance: unsupported type/size is rejected; text is extracted;
 
 ## 5. Sequence diagram
 
-```mermaid
-sequenceDiagram
-  autonumber
-  participant U as Developer/Admin
-  participant W as Next web
-  participant A as Nest API
-  participant D as Postgres
-  participant X as External
-  U->>W: Upload a CV
-  W->>A: request + Bearer access token
-  A->>A: verify JWT, role, ownership
-  A->>D: read/write owned rows
-  A->>X: provider call (only when needed)
-  X-->>A: bounded result
-  A-->>W: Zod-shaped response
-  W-->>U: screen state
-```
+Canonical sequence: [CV upload and extraction](../engineering/diagrams/sequences/05-cv-upload.md).
+The diagram is the source of truth for this flow and maps to the files above.
 
 ## 6. Data
 
@@ -65,7 +50,7 @@ ADR 0004: in-process parsing (`unpdf` + Gemini structured extraction), not a thi
 
 ## 11. Tests and evidence
 
-Guardrail unit tests; the live pipeline was run with `apps/api/test-fixtures/cv.pdf` → COMPLETED in ~3 s with 7 skills. Status transitions are unit-tested in the service contract.
+Guardrail unit tests; the live pipeline was run with `apps/api/test-fixtures/cv.pdf` → COMPLETED in ~3 s with 7 skills. The file-size guard is unit-tested; the status transition is enforced by the service and observed in the live run.
 
 Evidence lives under `dev/evidence/slice-2/`. The PR body records the
 exact commands and result.

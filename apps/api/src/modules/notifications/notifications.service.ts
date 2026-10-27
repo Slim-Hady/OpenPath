@@ -163,13 +163,11 @@ export class NotificationsService {
       }
       throw error;
     }
-    if (preferences.channels.includes('EMAIL')) {
-      const delayMs = preferences.frequency === 'INSTANT' ? 0 : undefined;
+    if (preferences.channels.includes('EMAIL') && preferences.frequency === 'INSTANT') {
       const queued = await this.queue.add(
         QUEUES.notifications,
         { notificationId: notification.id },
         `notification:${notification.id}:email`,
-        delayMs === undefined ? {} : { delayMs },
       );
       if (!queued) this.logger.warn(`notification ${notification.id} email not queued`);
     }

@@ -37,5 +37,11 @@ export async function GET(request: NextRequest) {
 
 function sanitizeNext(value: string | null): string {
   if (!value || !value.startsWith('/') || value.startsWith('//')) return '/discover';
-  return value;
+  try {
+    const resolved = new URL(value, 'http://local.invalid');
+    if (resolved.origin !== 'http://local.invalid') return '/discover';
+    return `${resolved.pathname}${resolved.search}${resolved.hash}`;
+  } catch {
+    return '/discover';
+  }
 }

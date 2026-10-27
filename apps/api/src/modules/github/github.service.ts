@@ -527,6 +527,55 @@ export class GithubService {
     };
   }
 
+  async pullActivity(
+    userId: string,
+    prUrl: string,
+    since: Date,
+  ): Promise<
+    Array<{
+      id: string;
+      type: 'review' | 'comment';
+      author: string;
+      body: string;
+      createdAt: string;
+    }>
+  > {
+    const match = /^https:\/\/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/.exec(prUrl);
+    if (!match) return [];
+    const [, owner, repo, number] = match;
+    if (!owner || !repo || !number) return [];
+    const octokit = await this.client(userId);
+    const [reviews, comments] = await Promise.all([
+      octokit.rest.pulls
+        .listReviews({ owner, repo, pull_number: Number(number), per_page: 30 })
+        .then((response) => response.data)
+        .catch(() => []),
+      octokit.rest.issues
+        .listComments({ owner, repo, issue_number: Number(number), per_page: 30 })
+        .then((response) => response.data)
+        .catch(() => []),
+    ]);
+    const events = [
+      ...reviews.map((review) => ({
+        id: `review-${review.id}`,
+        type: 'review' as const,
+        author: review.user?.login ?? 'unknown',
+        body: review.body ?? '',
+        createdAt: review.submitted_at ?? new Date().toISOString(),
+      })),
+      ...comments.map((comment) => ({
+        id: `comment-${comment.id}`,
+        type: 'comment' as const,
+        author: comment.user?.login ?? 'unknown',
+        body: comment.body ?? '',
+        createdAt: comment.created_at,
+      })),
+    ];
+    return events
+      .filter((event) => new Date(event.createdAt).getTime() >= since.getTime())
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  }
+
   async findLinkedPullRequest(
     userId: string,
     repoFullName: string,
@@ -681,7 +730,7 @@ export class GithubService {
             (wantedLanguage ? 50 : 0) +
             (wantedTopic ? 25 : 0),
           platformHandle: profile?.published ? profile.handle : null,
-          platformUserId: profile?.userId ?? null,
+          platformUserId: profile?.published && profile?.mentorOptIn ? profile.userId : null,
           optedIn: Boolean(profile?.mentorOptIn && profile?.published),
           activity: entry.activity,
         };
@@ -735,7 +784,7 @@ export class GithubService {
       topics: repos.flatMap((repo) => repo.topics ?? []).slice(0, 8),
       score: merged + commits,
       platformHandle: profile?.published ? profile.handle : null,
-      platformUserId: profile?.userId ?? null,
+      platformUserId: profile?.published && profile?.mentorOptIn ? profile.userId : null,
       optedIn: Boolean(profile?.mentorOptIn && profile?.published),
       activity: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
       bio: user.bio,

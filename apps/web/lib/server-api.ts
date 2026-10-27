@@ -1,3 +1,5 @@
+import type { ZodType } from 'zod';
+
 export class ServerApiError extends Error {
   constructor(
     public readonly status: number,
@@ -7,7 +9,7 @@ export class ServerApiError extends Error {
   }
 }
 
-export async function publicApi<T>(path: string): Promise<T> {
+export async function publicApi<T>(path: string, schema?: ZodType<T>): Promise<T> {
   const base = process.env.API_URL ?? 'http://localhost:4000';
   const response = await fetch(`${base.replace(/\/$/, '')}${path}`, {
     cache: 'no-store',
@@ -23,5 +25,5 @@ export async function publicApi<T>(path: string): Promise<T> {
         : `Request failed (${response.status})`;
     throw new ServerApiError(response.status, message);
   }
-  return payload as T;
+  return schema ? schema.parse(payload) : (payload as T);
 }

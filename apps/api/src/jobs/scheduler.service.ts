@@ -33,8 +33,18 @@ export class SchedulerService {
     if (!getEnv().ENABLE_SCHEDULER) return;
     await this.queue.add(
       QUEUES.notificationDigest,
-      { kind: 'enqueue-digests' },
-      `digest-enqueue:${new Date().toISOString().slice(0, 10)}`,
+      { kind: 'enqueue-digests', frequency: 'DAILY' },
+      `digest-daily:${new Date().toISOString().slice(0, 10)}`,
+    );
+  }
+
+  @Cron('0 8 * * 1')
+  async weeklyDigest(): Promise<void> {
+    if (!getEnv().ENABLE_SCHEDULER) return;
+    await this.queue.add(
+      QUEUES.notificationDigest,
+      { kind: 'enqueue-digests', frequency: 'WEEKLY' },
+      `digest-weekly:${new Date().toISOString().slice(0, 10)}`,
     );
   }
 

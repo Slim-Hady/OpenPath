@@ -25,23 +25,8 @@ FR-19.1–19.11. Acceptance: Admin-only; counts; AI totals; period filter; data 
 
 ## 5. Sequence diagram
 
-```mermaid
-sequenceDiagram
-  autonumber
-  participant U as Developer/Admin
-  participant W as Next web
-  participant A as Nest API
-  participant D as Postgres
-  participant X as External
-  U->>W: Open the admin dashboard
-  W->>A: request + Bearer access token
-  A->>A: verify JWT, role, ownership
-  A->>D: read/write owned rows
-  A->>X: provider call (only when needed)
-  X-->>A: bounded result
-  A-->>W: Zod-shaped response
-  W-->>U: screen state
-```
+Canonical sequence: [admin metrics](../engineering/diagrams/sequences/12-admin.md).
+The diagram is the source of truth for this flow and maps to the files above.
 
 ## 6. Data
 

@@ -2,9 +2,11 @@ import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
-import { AdminMetricsSchema, MeSchema, ProfileSchema, SelectionSchema } from '@osh/contracts';
+import { AccountHistorySchema, AdminMetricsSchema, MeSchema, ProfileSchema, SelectionSchema } from '@osh/contracts';
 import { AppModule } from '../app.module';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../modules/notifications/notifications.service';
+import { AchievementsService } from '../modules/achievements/achievements.service';
 
 jest.setTimeout(60_000);
 
@@ -14,6 +16,8 @@ describe('API integration (local Postgres)', () => {
   let devToken: string;
   let adminToken: string;
   let otherUserId: string;
+  let devUserId: string;
+  let otherToken: string;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
@@ -32,9 +36,15 @@ describe('API integration (local Postgres)', () => {
       CASCADE`;
 
     otherUserId = await createUser('other@test.dev', 'Other User', 'other', 'DEVELOPER');
-    await createUser('dev@test.dev', 'Dev User', 'dev-user', 'DEVELOPER');
+    devUserId = await createUser('dev@test.dev', 'Dev User', 'dev-user', 'DEVELOPER');
     await createUser('admin@test.dev', 'Admin User', 'admin-user', 'ADMIN');
+    await prisma.publicProfile.upsert({
+      where: { userId: otherUserId },
+      create: { userId: otherUserId, handle: 'other-user', published: true, mentorOptIn: true },
+      update: { published: true, mentorOptIn: true },
+    });
     devToken = 'dev:dev@test.dev';
+    otherToken = 'dev:other@test.dev';
     adminToken = 'dev:admin@test.dev';
   });
 
@@ -173,6 +183,67 @@ describe('API integration (local Postgres)', () => {
     expect(duplicate.status).toBe(409);
   });
 
+  it('persists exactly one notification for a repeated dedupe key', async () => {
+    const notifications = app.get(NotificationsService);
+    await notifications.create({
+      userId: devUserId,
+      type: 'SYSTEM',
+      title: 'Dedupe',
+      body: 'One row only',
+      dedupeKey: 'test:dedupe',
+    });
+    await notifications.create({
+      userId: devUserId,
+      type: 'SYSTEM',
+      title: 'Dedupe',
+      body: 'One row only',
+      dedupeKey: 'test:dedupe',
+    });
+    const count = await prisma.notification.count({
+      where: { userId: devUserId, dedupeKey: 'test:dedupe' },
+    });
+    expect(count).toBe(1);
+  });
+
+  it('awards FIRST_PR on PR_OPEN and serves owner history', async () => {
+    const selection = await prisma.selection.findFirstOrThrow({
+      where: { userId: devUserId, issueId: 'test/repo#10' },
+    });
+    const updated = await request(app.getHttpServer())
+      .patch(`/progress/${selection.id}`)
+      .set('Authorization', `Bearer ${devToken}`)
+      .send({
+        status: 'PR_OPEN',
+        prUrl: 'https://github.com/test/repo/pull/10',
+      });
+    expect(updated.status).toBe(200);
+    await prisma.badge.upsert({
+      where: { code: 'FIRST_PR' },
+      create: {
+        code: 'FIRST_PR',
+        name: 'First pull request',
+        description: 'First PR',
+        requirement: 'Open a PR',
+        target: 1,
+      },
+      update: {},
+    });
+    await app.get(AchievementsService).evaluate(devUserId);
+    const badges = await prisma.userBadge.findMany({
+      where: { userId: devUserId },
+      include: { badge: true },
+    });
+    expect(badges.some((row) => row.badge.code === 'FIRST_PR')).toBe(true);
+
+    const history = await request(app.getHttpServer())
+      .get('/me/history')
+      .set('Authorization', `Bearer ${devToken}`);
+    expect(history.status).toBe(200);
+    const parsed = AccountHistorySchema.parse(history.body);
+    expect(parsed.stats.selected).toBeGreaterThanOrEqual(1);
+    expect(parsed.items[0]?.issueId).toBe('test/repo#10');
+  });
+
   it('returns 404 for another user’s progress history', async () => {
     await createIssue('test/repo#11', 11);
     const selection = await prisma.selection.create({
@@ -182,6 +253,82 @@ describe('API integration (local Postgres)', () => {
       .get(`/progress/${selection.id}/history`)
       .set('Authorization', `Bearer ${devToken}`);
     expect(response.status).toBe(404);
+  });
+
+  it('enforces a unique sync dedupe key for a replayed job', async () => {
+    const selection = await prisma.selection.findFirstOrThrow({
+      where: { userId: devUserId, issueId: 'test/repo#10' },
+    });
+    await prisma.progressEvent.create({
+      data: {
+        selectionId: selection.id,
+        status: 'PR_OPEN',
+        source: 'SYNC',
+        dedupeKey: 'test:sync:dedupe',
+      },
+    });
+    await expect(
+      prisma.progressEvent.create({
+        data: {
+          selectionId: selection.id,
+          status: 'PR_OPEN',
+          source: 'SYNC',
+          dedupeKey: 'test:sync:dedupe',
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'P2002' });
+  });
+
+  it('runs the outreach lifecycle and enforces a block', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/outreach')
+      .set('Authorization', `Bearer ${devToken}`)
+      .send({
+        recipientId: otherUserId,
+        type: 'MENTORSHIP',
+        message: 'Would you mentor me on this first contribution?',
+      });
+    expect(created.status).toBe(201);
+    const requestId = created.body.id as string;
+
+    const accepted = await request(app.getHttpServer())
+      .patch(`/outreach/${requestId}`)
+      .set('Authorization', `Bearer ${otherToken}`)
+      .send({ action: 'ACCEPT' });
+    expect(accepted.status).toBe(200);
+    expect(accepted.body.status).toBe('ACCEPTED');
+
+    const message = await request(app.getHttpServer())
+      .post(`/outreach/${requestId}/conversation/messages`)
+      .set('Authorization', `Bearer ${otherToken}`)
+      .send({ body: 'Happy to help. What have you tried?' });
+    expect(message.status).toBe(201);
+    expect(message.body.messages.length).toBe(1);
+
+    const second = await request(app.getHttpServer())
+      .post('/outreach')
+      .set('Authorization', `Bearer ${devToken}`)
+      .send({
+        recipientId: otherUserId,
+        type: 'RECRUITMENT',
+        message: 'A second request should be blocked after the first is answered.',
+      });
+    expect(second.status).toBe(201);
+    const blocked = await request(app.getHttpServer())
+      .patch(`/outreach/${second.body.id}`)
+      .set('Authorization', `Bearer ${otherToken}`)
+      .send({ action: 'BLOCK' });
+    expect(blocked.status).toBe(200);
+
+    const denied = await request(app.getHttpServer())
+      .post('/outreach')
+      .set('Authorization', `Bearer ${devToken}`)
+      .send({
+        recipientId: otherUserId,
+        type: 'MENTORSHIP',
+        message: 'This must be rejected because the recipient blocked me.',
+      });
+    expect(denied.status).toBe(403);
   });
 
   it('returns 404 when marking another user’s notification read', async () => {

@@ -25,23 +25,8 @@ FR-17.1–17.10. Acceptance: public GitHub data only; ranking; filters; platform
 
 ## 5. Sequence diagram
 
-```mermaid
-sequenceDiagram
-  autonumber
-  participant U as Developer/Admin
-  participant W as Next web
-  participant A as Nest API
-  participant D as Postgres
-  participant X as External
-  U->>W: Search contributors
-  W->>A: request + Bearer access token
-  A->>A: verify JWT, role, ownership
-  A->>D: read/write owned rows
-  A->>X: provider call (only when needed)
-  X-->>A: bounded result
-  A-->>W: Zod-shaped response
-  W-->>U: screen state
-```
+Canonical sequence: [contributor search](../engineering/diagrams/sequences/11-contributor-search.md).
+The diagram is the source of truth for this flow and maps to the files above.
 
 ## 6. Data
 
@@ -65,7 +50,7 @@ Use public GitHub data instead of a scraped database. Rejected: a paid contribut
 
 ## 11. Tests and evidence
 
-Live search against a public repository; rate-limit path returns an honest error. Contract parses both list and detail.
+Live search against `octocat/Hello-World` returned a ranked contributor; contract parses list and detail; rate-limit path is an honest error.
 
 Evidence lives under `dev/evidence/slice-6/`. The PR body records the
 exact commands and result.

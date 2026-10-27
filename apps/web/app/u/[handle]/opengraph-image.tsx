@@ -1,4 +1,4 @@
-import type { PublicProfile } from '@osh/contracts';
+import { PublicProfileSchema, type PublicProfile } from '@osh/contracts';
 import { ImageResponse } from 'next/og';
 import { publicApi } from '@/lib/server-api';
 
@@ -10,7 +10,7 @@ export default async function Image({ params }: { params: Promise<{ handle: stri
   const { handle } = await params;
   let profile: PublicProfile | null = null;
   try {
-    profile = await publicApi<PublicProfile>(`/public/profiles/${encodeURIComponent(handle)}`);
+    profile = await publicApi<PublicProfile>(`/public/profiles/${encodeURIComponent(handle)}`, PublicProfileSchema);
   } catch {
     profile = null;
   }

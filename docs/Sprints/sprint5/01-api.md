@@ -21,6 +21,7 @@ Global conventions (base URL, auth header, error shape, pagination) live in [`..
 | A5.9 | GET/POST | `/outreach/:id/conversation[/messages]` | Session | Read/send messages | `{body}` | OutreachConversation | 403, 404, 409 not accepted |
 | A5.10 | GET | `/learning` | Public | Topic search | q, topic | LearningSearchResponse | 400 empty q |
 | A5.11 | GET | `/admin/ai-settings/usage` | Admin | Settings vs usage | — | `{settings, usage}` | 403 |
+| A5.12 | GET | `/outreach/:id` | Session | One request (via list) | — | OutreachRequest | 403/404 |
 
 ## 2. Manual API test checklist
 

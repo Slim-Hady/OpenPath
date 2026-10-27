@@ -25,23 +25,8 @@ FR-20.1–20.10. Acceptance: valid values stored; invalid rejected; limits apply
 
 ## 5. Sequence diagram
 
-```mermaid
-sequenceDiagram
-  autonumber
-  participant U as Developer/Admin
-  participant W as Next web
-  participant A as Nest API
-  participant D as Postgres
-  participant X as External
-  U->>W: Save AI settings
-  W->>A: request + Bearer access token
-  A->>A: verify JWT, role, ownership
-  A->>D: read/write owned rows
-  A->>X: provider call (only when needed)
-  X-->>A: bounded result
-  A-->>W: Zod-shaped response
-  W-->>U: screen state
-```
+Canonical sequence: [AI settings enforcement](../engineering/diagrams/sequences/04-ai-guide.md).
+The diagram is the source of truth for this flow and maps to the files above.
 
 ## 6. Data
 
@@ -65,7 +50,7 @@ Read settings on every AI request (a 1-row query) so changes apply immediately. 
 
 ## 11. Tests and evidence
 
-Contract rejects temperature 1.4; live admin page; ranking/guide calls showed token usage and the limit path returns 429 without a provider call.
+Contract rejects temperature 1.4; unit test proves discovery rethrows `AI_TOKEN_LIMIT` (429) instead of falling back; live admin page and limit path.
 
 Evidence lives under `dev/evidence/slice-2/`. The PR body records the
 exact commands and result.

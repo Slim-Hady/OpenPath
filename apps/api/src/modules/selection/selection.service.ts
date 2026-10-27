@@ -174,7 +174,7 @@ export class SelectionService {
       });
       return saved;
     });
-    if (status === 'MERGED' && selection.status !== 'MERGED') {
+    if (['PR_OPEN', 'MERGED'].includes(status) && selection.status !== status) {
       await this.queue.add(
         QUEUES.gamification,
         { userId },

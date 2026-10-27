@@ -3,6 +3,7 @@ import Link from 'next/link';
 const TABS = [
   { href: '/settings/profile', label: 'Profile' },
   { href: '/settings/account', label: 'Account' },
+  { href: '/settings/history', label: 'History' },
   { href: '/settings/notifications', label: 'Notifications' },
   { href: '/settings/appearance', label: 'Appearance' },
 ];

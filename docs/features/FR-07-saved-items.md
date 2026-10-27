@@ -24,23 +24,8 @@ FR-7.1–7.8. Acceptance: ownership is enforced; state is shown; a closed/taken 
 
 ## 5. Sequence diagram
 
-```mermaid
-sequenceDiagram
-  autonumber
-  participant U as Developer/Admin
-  participant W as Next web
-  participant A as Nest API
-  participant D as Postgres
-  participant X as External
-  U->>W: Save an issue to a list
-  W->>A: request + Bearer access token
-  A->>A: verify JWT, role, ownership
-  A->>D: read/write owned rows
-  A->>X: provider call (only when needed)
-  X-->>A: bounded result
-  A-->>W: Zod-shaped response
-  W-->>U: screen state
-```
+Canonical sequence: [saved items](../engineering/diagrams/sequences/03-selection-onboarding.md).
+The diagram is the source of truth for this flow and maps to the files above.
 
 ## 6. Data
 

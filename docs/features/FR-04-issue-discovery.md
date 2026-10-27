@@ -25,23 +25,8 @@ FR-4.1–4.10. Acceptance: results respect the filters; excluded issues never ap
 
 ## 5. Sequence diagram
 
-```mermaid
-sequenceDiagram
-  autonumber
-  participant U as Developer/Admin
-  participant W as Next web
-  participant A as Nest API
-  participant D as Postgres
-  participant X as External
-  U->>W: Search GitHub issues
-  W->>A: request + Bearer access token
-  A->>A: verify JWT, role, ownership
-  A->>D: read/write owned rows
-  A->>X: provider call (only when needed)
-  X-->>A: bounded result
-  A-->>W: Zod-shaped response
-  W-->>U: screen state
-```
+Canonical sequence: [discovery and ranking](../engineering/diagrams/sequences/02-discovery-ranking.md).
+The diagram is the source of truth for this flow and maps to the files above.
 
 ## 6. Data
 
@@ -65,7 +50,7 @@ Shared candidate pool instead of per-user search; unauthenticated public search 
 
 ## 11. Tests and evidence
 
-Live run returned open TypeScript `good first issue` candidates; contract rejects `repo=not-a-repo`.
+Live API search returned open TypeScript candidates; contract rejects `repo=not-a-repo`; the browser rendered three ranked cards.
 
 Evidence lives under `dev/evidence/slice-3/`. The PR body records the
 exact commands and result.

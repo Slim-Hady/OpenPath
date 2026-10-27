@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type { CvExtraction, CvFile } from '@osh/contracts';
-import { CvExtractionSchema } from '@osh/contracts';
+import { CV_MAX_BYTES, CvExtractionSchema } from '@osh/contracts';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../infra/storage.service';
 import { QueueService, QUEUES } from '../../infra/queue.service';
@@ -10,6 +10,7 @@ import { AiUsageService } from '../ai/ai-usage.service';
 import { GeminiService } from '../ai/gemini.service';
 import { GuardrailService } from '../ai/guardrail.service';
 import { AI_FEATURE, CV_SYSTEM, cvPrompt } from '../ai/prompts';
+import { isAiLimitError } from '../ai/limits';
 import { parseJsonObject } from '../ai/json';
 import { parseCvText } from './cv.parser';
 
@@ -29,6 +30,9 @@ export class CvService {
   async upload(userId: string, file: Express.Multer.File): Promise<CvFile> {
     if (!file || !file.buffer || file.size === 0) {
       throw new AppError('EMPTY_FILE', 'Choose a CV file', 400);
+    }
+    if (file.size > CV_MAX_BYTES) {
+      throw new AppError('FILE_TOO_LARGE', 'The CV must be 5 MB or smaller', 413);
     }
     const extension = file.originalname.split('.').pop()?.toLowerCase() ?? '';
     const mime =
@@ -118,7 +122,7 @@ export class CvService {
         where: { id: fileId },
         data: {
           status: 'COMPLETED',
-          rawText: text.slice(0, 30_000),
+          rawText: null,
           extracted: extraction,
           error: null,
         },
@@ -140,7 +144,7 @@ export class CvService {
       const result = await this.gemini.generateJson({
         system: CV_SYSTEM,
         prompt: cvPrompt(text),
-        temperature: Math.min(settings.temperature, 0.4),
+        temperature: settings.temperature,
         maxOutputTokens: 900,
         schema: {
           type: 'OBJECT',
@@ -173,6 +177,7 @@ export class CvService {
         source: 'AI',
       };
     } catch (error) {
+      if (isAiLimitError(error)) throw error;
       if (error instanceof AppError && error.code.startsWith('AI_')) {
         this.logger.warn(`CV AI unavailable, using rules: ${error.code}`);
       }

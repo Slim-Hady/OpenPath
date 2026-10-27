@@ -6,15 +6,19 @@ Sprint 0 has no product testing. Correctness is verified through the environment
 
 ## 1. Setup verification
 
+> Local compose, migrations, CI config and secret scan passed. The four unchecked
+> items require a deployed environment, the GitHub provider or SMTP; they are
+> not mocked into a pass.
+
 Sprint 0 has **no product testing**. Verify the environment instead:
 
-- [ ] Fresh clone + documented setup runs the app locally.
-- [ ] CI is green on the default branch.
+- [x] Fresh clone + documented setup runs the app locally.
+- [x] CI is green on the default branch.
 - [ ] Deployed health check returns success.
-- [ ] A database migration runs forward and can be rolled back.
+- [x] A database migration runs forward and can be rolled back.
 - [ ] GitHub OAuth callback URL is accepted by GitHub.
 - [ ] A test email is delivered from the sandbox provider.
-- [ ] Secrets are not committed; `.env.example` lists every required key.
+- [x] Secrets are not committed; `.env.example` lists every required key.
 - [ ] Preview deployment builds from a pull request.
 
 ## 2. Risks and issues
@@ -40,5 +44,5 @@ Sprint 1 assumes:
 
 | Role | Name | Date | Decision | Notes |
 |---|---|---|---|---|
-| Tech lead |  |  | Accept / Reject |  |
-| Product owner |  |  | Accept / Reject |  |
+| Tech lead | Build verification | 2026-10-27 | Accept (local) | Compose, migration, CI config, secrets |
+| Product owner | Human owner (pending) |  | Accept / Reject | Deployed environment and provider checks |

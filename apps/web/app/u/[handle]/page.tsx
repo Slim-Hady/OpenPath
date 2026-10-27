@@ -1,4 +1,4 @@
-import type { PublicProfile } from '@osh/contracts';
+import { PublicProfileSchema, type PublicProfile } from '@osh/contracts';
 import { ExternalLink, Github } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -30,7 +30,7 @@ export default async function PublicProfilePage({
   const { handle } = await params;
   let profile: PublicProfile | null = null;
   try {
-    profile = await publicApi<PublicProfile>(`/public/profiles/${encodeURIComponent(handle)}`);
+    profile = await publicApi<PublicProfile>(`/public/profiles/${encodeURIComponent(handle)}`, PublicProfileSchema);
   } catch (error) {
     if (!(error instanceof ServerApiError) || error.status !== 404) throw error;
   }

@@ -24,23 +24,8 @@ FR-12.1–12.10. Acceptance: guides render; search returns matching resources; n
 
 ## 5. Sequence diagram
 
-```mermaid
-sequenceDiagram
-  autonumber
-  participant U as Developer/Admin
-  participant W as Next web
-  participant A as Nest API
-  participant D as Postgres
-  participant X as External
-  U->>W: Search learning resources
-  W->>A: request + Bearer access token
-  A->>A: verify JWT, role, ownership
-  A->>D: read/write owned rows
-  A->>X: provider call (only when needed)
-  X-->>A: bounded result
-  A-->>W: Zod-shaped response
-  W-->>U: screen state
-```
+Canonical sequence: [learning search](../engineering/diagrams/sequences/09-learning.md).
+The diagram is the source of truth for this flow and maps to the files above.
 
 ## 6. Data
 

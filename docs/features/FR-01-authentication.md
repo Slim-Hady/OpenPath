@@ -25,23 +25,8 @@ FR-1.1–1.11. Acceptance: valid credentials create a session; duplicate email a
 
 ## 5. Sequence diagram
 
-```mermaid
-sequenceDiagram
-  autonumber
-  participant U as Developer/Admin
-  participant W as Next web
-  participant A as Nest API
-  participant D as Postgres
-  participant X as External
-  U->>W: Sign in or sign up
-  W->>A: request + Bearer access token
-  A->>A: verify JWT, role, ownership
-  A->>D: read/write owned rows
-  A->>X: provider call (only when needed)
-  X-->>A: bounded result
-  A-->>W: Zod-shaped response
-  W-->>U: screen state
-```
+Canonical sequence: [sign-up and login](../engineering/diagrams/sequences/01-auth.md).
+The diagram is the source of truth for this flow and maps to the files above.
 
 ## 6. Data
 
@@ -57,7 +42,7 @@ Supabase Auth (free MAU), GitHub OAuth. No token refresh: a revoked provider tok
 
 ## 9. Authorization and failure modes
 
-`JwtAuthGuard` is global; `@Public()` only on health, learning and public profiles. Roles come from the database, never a client claim. Ownership is re-checked in profile services.
+`JwtAuthGuard` is global; `@Public()` only on health, learning and public profiles. Roles come from the database, never a client claim. Ownership is re-checked in profile services. Linking an existing account by email requires `email_verified === true`.
 
 ## 10. Decisions and rejected alternatives
 
@@ -65,7 +50,7 @@ ADR 0001 (Nest + Next), ADR 0002 (Supabase-managed GitHub OAuth). Rejected: stor
 
 ## 11. Tests and evidence
 
-`docs/Sprints/sprint1/02-testing.md` M1.1–M1.8. Integration: missing token 401, Developer on Admin 403, contract parse on `/me`.
+`docs/Sprints/sprint1/02-testing.md` M1.1–M1.8. Integration: missing token 401, Developer on Admin 403, contract parse on `/me`; unit test requires a verified email before linking an existing account. GitHub OAuth and reset email delivery are provider-blocked manual checks.
 
 Evidence lives under `dev/evidence/slice-2/`. The PR body records the
 exact commands and result.

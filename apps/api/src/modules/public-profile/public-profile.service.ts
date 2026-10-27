@@ -76,8 +76,11 @@ export class PublicProfileService {
     if (!profile || !profile.published) {
       throw AppError.notFound('This profile is private.');
     }
+    const [merged, prOpen] = await Promise.all([
+      this.prisma.selection.count({ where: { userId: profile.userId, status: 'MERGED' } }),
+      this.prisma.selection.count({ where: { userId: profile.userId, status: 'PR_OPEN' } }),
+    ]);
     const user = profile.user;
-    const merged = user.selections.length;
     const badges = user.badges.filter((badge) => badge.publicVisible);
     return {
       handle: profile.handle,
@@ -85,10 +88,10 @@ export class PublicProfileService {
       avatarUrl: user.avatarUrl,
       bio: user.bio,
       joinedAt: user.createdAt.toISOString(),
-      githubLogin: user.githubLogin,
+      githubLogin: profile.showContributions ? user.githubLogin : null,
       stats: {
         merged: profile.showContributions ? merged : 0,
-        prOpen: 0,
+        prOpen: profile.showContributions ? prOpen : 0,
         badges: profile.showBadges ? badges.length : 0,
         streak: profile.showStreak ? user.streak?.current ?? 0 : 0,
       },

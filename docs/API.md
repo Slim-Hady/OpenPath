@@ -22,7 +22,7 @@ checklist in `Sprints/sprintN/01-api.md`.
 | File uploads | PDF or DOCX, ≤5 MB, magic-byte checked, private `cvs` bucket, signed/owner-only download. |
 | Request ID | `x-request-id` echoed; logs contain userId/requestId, never tokens. |
 | CORS | None. The browser only calls the web origin. |
-| Health | `GET /health` liveness, `GET /health/ready` DB + Redis readiness. |
+| Health | `GET /health` liveness; `GET /health/ready` database readiness and a Redis check in the body. |
 
 ## Sprint contracts
 

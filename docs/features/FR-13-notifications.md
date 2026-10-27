@@ -25,23 +25,8 @@ FR-13.1–13.10. Acceptance: events create notifications; preferences suppress t
 
 ## 5. Sequence diagram
 
-```mermaid
-sequenceDiagram
-  autonumber
-  participant U as Developer/Admin
-  participant W as Next web
-  participant A as Nest API
-  participant D as Postgres
-  participant X as External
-  U->>W: Read notifications
-  W->>A: request + Bearer access token
-  A->>A: verify JWT, role, ownership
-  A->>D: read/write owned rows
-  A->>X: provider call (only when needed)
-  X-->>A: bounded result
-  A-->>W: Zod-shaped response
-  W-->>U: screen state
-```
+Canonical sequence: [notification delivery](../engineering/diagrams/sequences/07-notifications.md).
+The diagram is the source of truth for this flow and maps to the files above.
 
 ## 6. Data
 
@@ -65,7 +50,7 @@ Store every event in-app first; email is a delivery channel, not the record. Rej
 
 ## 11. Tests and evidence
 
-Integration ownership test; live list/read/preferences path in compose.
+Integration ownership test; unit tests prove INSTANT queues email while DAILY/WEEKLY do not, and a disabled type is suppressed. Live browser path in compose.
 
 Evidence lives under `dev/evidence/slice-5/`. The PR body records the
 exact commands and result.

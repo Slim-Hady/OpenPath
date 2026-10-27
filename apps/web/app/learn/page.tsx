@@ -4,7 +4,7 @@ import { Logo } from '@/components/logo';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { EmptyState, Pill } from '@/components/ui/card';
 import { publicApi } from '@/lib/server-api';
-import type { LearningSearchResponse } from '@osh/contracts';
+import { LearningSearchResponseSchema, type LearningSearchResponse } from '@osh/contracts';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,6 +21,7 @@ export default async function LearnPage({
       : params.topic
         ? `/learning?topic=${encodeURIComponent(params.topic)}`
         : '/learning',
+    LearningSearchResponseSchema,
   );
 
   return (

@@ -19,6 +19,7 @@ Global conventions (base URL, auth header, error shape, pagination) live in [`..
 | A4.7 | DELETE | `/me` | Developer | Delete account + data | — | `{requested:true}` | 401 |
 | A4.8 | GET | `/admin/metrics` | Admin | Users/suggestions/status | start?, end? | AdminMetrics | 403 |
 | A4.9 | GET | `/admin/ai-usage` | Admin | Tokens by feature/period | start, end, feature | AiUsageSummary | 400, 403 |
+| A4.10 | GET | `/admin/users` | Admin | Registered users | — | AdminUsers | 403 |
 
 ## 2. Manual API test checklist
 

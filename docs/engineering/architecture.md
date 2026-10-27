@@ -68,7 +68,7 @@ Retries: 3, exponential backoff, then dead-letter. A repeated GitHub event must 
 |---|---|
 | Issue ranking | rules pre-filter (≤20 candidates) → Gemini JSON `{issueId, rank, reason}` → validate ids → deterministic fallback on timeout/invalid |
 | Onboarding | one structured call per repository/issue, cached by repo + commit sha and issue `updated_at` |
-| AI guide | per-issue context + history, streamed, token-metered per message |
+| AI guide | per-issue context + history, non-streaming JSON under an 8s budget, token-metered per message; SSE is deferred |
 
 Guardrail: system prompt + output post-filter (reject fenced code, diffs, step-by-step implementations) + `docs/Sprints/sprint3/02-testing.md` eval suite. Every AI call writes a usage row (feature, tokens, model, userId) **before** returning.
 

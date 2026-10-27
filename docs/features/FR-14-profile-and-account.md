@@ -25,23 +25,8 @@ FR-14.1–14.11. Acceptance: unique username; password updated; history is owner
 
 ## 5. Sequence diagram
 
-```mermaid
-sequenceDiagram
-  autonumber
-  participant U as Developer/Admin
-  participant W as Next web
-  participant A as Nest API
-  participant D as Postgres
-  participant X as External
-  U->>W: View history or delete the account
-  W->>A: request + Bearer access token
-  A->>A: verify JWT, role, ownership
-  A->>D: read/write owned rows
-  A->>X: provider call (only when needed)
-  X-->>A: bounded result
-  A-->>W: Zod-shaped response
-  W-->>U: screen state
-```
+Canonical sequence: [account history and deletion](../engineering/diagrams/sequences/01-auth.md).
+The diagram is the source of truth for this flow and maps to the files above.
 
 ## 6. Data
 
@@ -65,7 +50,7 @@ Delete rather than anonymise because the requirements ask for personal data remo
 
 ## 11. Tests and evidence
 
-Integration `/me` 200, invalid profile 400; live settings page. Deletion is exercised with a seeded test user in `docs/DEMO.md`.
+Integration `/me` 200, invalid profile 400, owner history contract parse; the `/settings/history` screen consumes it. Deletion is exercised with a disposable test user in `docs/DEMO.md`.
 
 Evidence lives under `dev/evidence/slice-2/`. The PR body records the
 exact commands and result.

@@ -19,9 +19,9 @@ FEATURES = [
         "data": "`User` (authId unique, email unique, role, githubLogin, githubTokenEnc, lastSeenAt) and `PublicProfile`. Sessions live in Supabase; the app never stores a password. Indexes: `User.authId`, `User.email`, `User.role`.",
         "contract": "`GET /me`, `PATCH /me`, `GET /github/status`, `POST /github/connect`, `DELETE /github`. Public sign-up/login/reset are Supabase endpoints, not API routes. Errors: 400 validation, 401 missing/expired token, 403 wrong role, 409 duplicate username.",
         "external": "Supabase Auth (free MAU), GitHub OAuth. No token refresh: a revoked provider token returns `GITHUB_TOKEN_UNREADABLE` and the user reconnects.",
-        "auth": "`JwtAuthGuard` is global; `@Public()` only on health, learning and public profiles. Roles come from the database, never a client claim. Ownership is re-checked in profile services.",
+        "auth": "`JwtAuthGuard` is global; `@Public()` only on health, learning and public profiles. Roles come from the database, never a client claim. Ownership is re-checked in profile services. Linking an existing account by email requires `email_verified === true`.",
         "decisions": "ADR 0001 (Nest + Next), ADR 0002 (Supabase-managed GitHub OAuth). Rejected: storing the GitHub client secret in the API, and issuing our own passwords.",
-        "tests": "`docs/Sprints/sprint1/02-testing.md` M1.1–M1.8. Integration: missing token 401, Developer on Admin 403, contract parse on `/me`.",
+        "tests": "`docs/Sprints/sprint1/02-testing.md` M1.1–M1.8. Integration: missing token 401, Developer on Admin 403, contract parse on `/me`; unit test requires a verified email before linking an existing account. GitHub OAuth and reset email delivery are provider-blocked manual checks.",
         "demo": "Open `/login`, sign in as `dev@osh.dev`, confirm `/discover`. Open `/admin` in the same session and confirm the denial.",
         "limits": "Email reset delivery depends on Supabase SMTP; the free project's built-in SMTP is best-effort. GitHub sign-in needs the provider enabled by the project owner.",
     },
@@ -53,7 +53,7 @@ FEATURES = [
         "external": "Supabase Storage (private bucket), Gemini `CV_EXTRACTION`, local PDF parser. Queue retries 3 with exponential backoff. AI usage is metered before the provider call.",
         "auth": "`CvService` uses `userId` from the token and filters every query by it. Storage paths start with the user id.",
         "decisions": "ADR 0004: in-process parsing (`unpdf` + Gemini structured extraction), not a third-party CV service. Rejected: a paid parser and sending raw files to a browser-side model.",
-        "tests": "Guardrail unit tests; the live pipeline was run with `apps/api/test-fixtures/cv.pdf` → COMPLETED in ~3 s with 7 skills. Status transitions are unit-tested in the service contract.",
+        "tests": "Guardrail unit tests; the live pipeline was run with `apps/api/test-fixtures/cv.pdf` → COMPLETED in ~3 s with 7 skills. The file-size guard is unit-tested; the status transition is enforced by the service and observed in the live run.",
         "demo": "Settings → Profile → drop `cv.pdf`; watch the status; press Apply to profile; save and reload.",
         "limits": "Scanned PDFs without a text layer cannot be read; the UI says so. DOCX is supported; images are not. Gemini free-tier 503 falls back to rules and labels the source.",
     },
@@ -69,7 +69,7 @@ FEATURES = [
         "external": "GitHub Search API (~30 req/min authenticated; lower unauthenticated). Cache is shared across users; no search per user per keystroke. Fallback: stale cache, then an honest rate-limit message.",
         "auth": "Role gate Developer; exclusions are per user. The candidate pool is shared but never leaks another user's selections.",
         "decisions": "Shared candidate pool instead of per-user search; unauthenticated public search is allowed when GitHub is not connected.",
-        "tests": "Live run returned open TypeScript `good first issue` candidates; contract rejects `repo=not-a-repo`.",
+        "tests": "Live API search returned open TypeScript candidates; contract rejects `repo=not-a-repo`; the browser rendered three ranked cards.",
         "demo": "Discover → language TypeScript → label good first issue → activity 180 days → Find issues.",
         "limits": "GitHub search quality and quota are external. Archived repositories are excluded in the query; private repositories require a connected token with access.",
     },
@@ -213,7 +213,7 @@ FEATURES = [
         "external": "Resend email best-effort; in-app is the source of truth. Failed email never fails the event.",
         "auth": "Every read/update filters by the owner; the integration test asserts another user's notification is 404.",
         "decisions": "Store every event in-app first; email is a delivery channel, not the record. Rejected: email-only notifications.",
-        "tests": "Integration ownership test; live list/read/preferences path in compose.",
+        "tests": "Integration ownership test; unit tests prove INSTANT queues email while DAILY/WEEKLY do not, and a disabled type is suppressed. Live browser path in compose.",
         "demo": "Select an issue → notification appears → mark read → reload; enable email, earn a badge, check the inbox.",
         "limits": "Supabase free SMTP/resend test sender is best-effort. Digest delivery is daily at 08:00 UTC.",
     },
@@ -229,7 +229,7 @@ FEATURES = [
         "external": "Supabase Auth admin API for deletion; Storage for CV files.",
         "auth": "History is scoped to the caller; deletion requires a fresh confirmation in the UI and the account's own token.",
         "decisions": "Delete rather than anonymise because the requirements ask for personal data removal; aggregates remain anonymous via cascaded deletion.",
-        "tests": "Integration `/me` 200, invalid profile 400; live settings page. Deletion is exercised with a seeded test user in `docs/DEMO.md`.",
+        "tests": "Integration `/me` 200, invalid profile 400, owner history contract parse; the `/settings/history` screen consumes it. Deletion is exercised with a disposable test user in `docs/DEMO.md`.",
         "demo": "Settings → Account → change bio → save → reload; open History; delete a disposable test account.",
         "limits": "Deletion is asynchronous; the UI returns immediately. Supabase auth deletion failures are logged without a token and the request remains retryable.",
     },
@@ -261,7 +261,7 @@ FEATURES = [
         "external": "None.",
         "auth": "Owner-scoped; the public read is gated by the profile visibility switch.",
         "decisions": "Rules in code, awards in the database. Rejected: manual badge assignment and client-side counters.",
-        "tests": "Live achievements page; worker evaluation is idempotent by unique user+badge; badge award is asserted through the notification dedupe key.",
+        "tests": "Unit test proves FIRST_PR is awarded on PR_OPEN without waiting for a merge. Integration covers the badge award and notification dedupe; live achievements page in compose.",
         "demo": "Progress → mark an issue Merged → Achievements shows First merge; toggle visibility with the profile published.",
         "limits": "Streak uses platform progress events, not GitHub's contribution graph. The seeded badge set is intentionally small.",
     },
@@ -277,7 +277,7 @@ FEATURES = [
         "external": "GitHub public data. Search/contributor quotas are shared; results cached 15 minutes.",
         "auth": "Developer/Maintainer role. Only public GitHub data is read; platform profile links only when published.",
         "decisions": "Use public GitHub data instead of a scraped database. Rejected: a paid contributor index.",
-        "tests": "Live search against a public repository; rate-limit path returns an honest error. Contract parses both list and detail.",
+        "tests": "Live search against `octocat/Hello-World` returned a ranked contributor; contract parses list and detail; rate-limit path is an honest error.",
         "demo": "Community → `vercel/next.js` → search → open a contributor → open their GitHub link.",
         "limits": "Org search samples the five most recent repos; activity is a 12-week contribution bar, not a full commit history. GitHub quotas apply.",
     },
@@ -325,11 +325,34 @@ FEATURES = [
         "external": "Gemini; the limit is enforced before the fetch.",
         "auth": "Admin-only; feature services use the stored singleton, not a client-supplied value. Users can only see their own conversation usage.",
         "decisions": "Read settings on every AI request (a 1-row query) so changes apply immediately. Rejected: caching settings for an hour.",
-        "tests": "Contract rejects temperature 1.4; live admin page; ranking/guide calls showed token usage and the limit path returns 429 without a provider call.",
+        "tests": "Contract rejects temperature 1.4; unit test proves discovery rethrows `AI_TOKEN_LIMIT` (429) instead of falling back; live admin page and limit path.",
         "demo": "`/admin/ai` → lower the token limit → ask the guide again → limit banner; raise it and confirm recovery.",
         "limits": "The cost figure is a blended estimate, not a provider invoice. The free tier may cost $0; the limit is a safety ceiling.",
     },
 ]
+
+SEQ = {
+    1: ("01-auth.md", "sign-up and login"),
+    2: ("03-selection-onboarding.md", "profile and onboarding"),
+    3: ("05-cv-upload.md", "CV upload and extraction"),
+    4: ("02-discovery-ranking.md", "discovery and ranking"),
+    5: ("02-discovery-ranking.md", "ranking"),
+    6: ("03-selection-onboarding.md", "selection"),
+    7: ("03-selection-onboarding.md", "saved items"),
+    8: ("06-progress-sync.md", "progress and sync"),
+    9: ("03-selection-onboarding.md", "repository onboarding"),
+    10: ("03-selection-onboarding.md", "issue onboarding"),
+    11: ("04-ai-guide.md", "AI guide and guardrail"),
+    12: ("09-learning.md", "learning search"),
+    13: ("07-notifications.md", "notification delivery"),
+    14: ("01-auth.md", "account history and deletion"),
+    15: ("10-public-profile.md", "public profile"),
+    16: ("06-progress-sync.md", "badges and streaks"),
+    17: ("11-contributor-search.md", "contributor search"),
+    18: ("08-outreach.md", "outreach"),
+    19: ("12-admin.md", "admin metrics"),
+    20: ("04-ai-guide.md", "AI settings enforcement"),
+}
 
 TEMPLATE = """# FR-{n:02d} — {title}
 
@@ -354,23 +377,8 @@ TEMPLATE = """# FR-{n:02d} — {title}
 
 ## 5. Sequence diagram
 
-```mermaid
-sequenceDiagram
-  autonumber
-  participant U as Developer/Admin
-  participant W as Next web
-  participant A as Nest API
-  participant D as Postgres
-  participant X as External
-  U->>W: {short}
-  W->>A: request + Bearer access token
-  A->>A: verify JWT, role, ownership
-  A->>D: read/write owned rows
-  A->>X: provider call (only when needed)
-  X-->>A: bounded result
-  A-->>W: Zod-shaped response
-  W-->>U: screen state
-```
+Canonical sequence: [{sequence_label}](../engineering/diagrams/sequences/{sequence_file}).
+The diagram is the source of truth for this flow and maps to the files above.
 
 ## 6. Data
 
@@ -450,10 +458,11 @@ for feature in FEATURES:
         life=feature["life"], data=feature["data"], contract=feature["contract"],
         external=feature["external"], auth=feature["auth"], decisions=feature["decisions"],
         tests=feature["tests"], demo=feature["demo"], limits=feature["limits"],
-        short=short, date=DATE)
+        short=short, date=DATE, sequence_file=SEQ[feature["n"]][0],
+        sequence_label=SEQ[feature["n"]][1])
     name = f"FR-{feature['n']:02d}-{feature['slug']}.md"
     (OUT / name).write_text(body, encoding="utf-8")
-    INDEX += f"| FR-{feature['n']} | [{feature['title']}]({name}) | {feature['story']} | {feature['sprint']} | shipped |\\n"
+    INDEX += f"| FR-{feature['n']} | [{feature['title']}]({name}) | {feature['story']} | {feature['sprint']} | shipped |\n"
 
 (OUT / "README.md").write_text(INDEX, encoding="utf-8")
 print(f"wrote {len(FEATURES)} feature documents")

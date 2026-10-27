@@ -37,11 +37,13 @@ export class WorkerRunner implements OnModuleDestroy {
       await this.sync.deliverNotification(String(data.notificationId));
     });
     this.register(QUEUES.notificationDigest, async (data) => {
-      if (data.kind === 'enqueue-digests') await this.sync.enqueueDigests();
+      if (data.kind === 'enqueue-digests') {
+        await this.sync.enqueueDigests(data.frequency === 'WEEKLY' ? 'WEEKLY' : 'DAILY');
+      }
       else if (data.userId) await this.sync.deliverDigest(String(data.userId));
     });
-    this.register(QUEUES.syncProgress, async () => {
-      await this.sync.syncProgress();
+    this.register(QUEUES.syncProgress, async (data) => {
+      await this.sync.syncProgress(typeof data.userId === 'string' ? data.userId : undefined);
     });
     this.register(QUEUES.syncSaved, async () => {
       await this.sync.syncSaved();

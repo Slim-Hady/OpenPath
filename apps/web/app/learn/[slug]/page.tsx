@@ -1,4 +1,4 @@
-import type { LearningResource } from '@osh/contracts';
+import { LearningResourceSchema, type LearningResource } from '@osh/contracts';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Logo } from '@/components/logo';
@@ -16,7 +16,7 @@ export default async function LearnArticlePage({
   const { slug } = await params;
   let resource: LearningResource | null = null;
   try {
-    resource = await publicApi<LearningResource>(`/learning/${encodeURIComponent(slug)}`);
+    resource = await publicApi<LearningResource>(`/learning/${encodeURIComponent(slug)}`, LearningResourceSchema);
   } catch (error) {
     if (error instanceof ServerApiError && error.status === 404) notFound();
     throw error;

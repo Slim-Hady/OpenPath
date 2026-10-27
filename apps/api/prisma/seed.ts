@@ -9,6 +9,10 @@ if (existsSync(rootEnv)) config({ path: rootEnv });
 
 const prisma = new PrismaClient();
 const PASSWORD = process.env.SEED_PASSWORD ?? 'OpenSource!2026';
+const databaseUrl = process.env.DATABASE_URL ?? '';
+if (!/localhost|127\.0\.0\.1/.test(databaseUrl) && !process.env.SEED_PASSWORD) {
+  throw new Error('SEED_PASSWORD is required when seeding a non-local database');
+}
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const bucket = process.env.STORAGE_BUCKET ?? 'cvs';

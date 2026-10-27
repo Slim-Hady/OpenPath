@@ -48,7 +48,22 @@ export class GuardrailService {
   isCodeFree(text: string): boolean {
     if (/```/.test(text)) return false;
     if (/^(diff --git|@@|\+\+\+|---)\s?/m.test(text)) return false;
+    if (this.hasInlineCode(text)) return false;
     return !text.split('\n').some((line) => this.isCodeLine(line));
+  }
+
+  private hasInlineCode(text: string): boolean {
+    const spans = text.matchAll(/`([^`]+)`/g);
+    for (const span of spans) {
+      if (span[1] && this.isCodeSpan(span[1])) return true;
+    }
+    return false;
+  }
+
+  private isCodeSpan(value: string): boolean {
+    return /(=>|;\s*$|\breturn\b|\bconst\b|\blet\b|\bvar\b|\bfunction\b|\bclass\b|\bif\s*\(|\bfor\s*\(|\bimport\s+|\bexport\s+|[{}]\s*;)/.test(
+      value.trim(),
+    );
   }
 
   private isCodeLine(line: string): boolean {
@@ -71,6 +86,11 @@ export class GuardrailService {
       return '';
     });
     text = text.replace(/^(diff --git[\s\S]*?)(?=\n\n|$)/gm, () => {
+      changed = true;
+      return '';
+    });
+    text = text.replace(/`([^`]+)`/g, (span, inner: string) => {
+      if (!this.isCodeSpan(inner)) return span;
       changed = true;
       return '';
     });

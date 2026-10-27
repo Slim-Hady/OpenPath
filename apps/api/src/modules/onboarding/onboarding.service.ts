@@ -18,6 +18,7 @@ import {
   repositoryPrompt,
 } from '../ai/prompts';
 import { parseJsonObject } from '../ai/json';
+import { isAiLimitError } from '../ai/limits';
 
 const RepositoryGeneratedSchema = z.object({
   overview: z.string().min(1).max(1200),
@@ -88,7 +89,7 @@ export class OnboardingService {
           contributing: context.contributing,
           tree: context.tree.slice(0, 200).join('\n'),
         }),
-        temperature: Math.min(allowance.settings.temperature, 0.4),
+        temperature: allowance.settings.temperature,
         maxOutputTokens: 1800,
         timeoutMs: 20_000,
         model: 'gemini-2.5-flash-lite',
@@ -128,6 +129,7 @@ export class OnboardingService {
       });
       generated = RepositoryGeneratedSchema.parse(parseJsonObject(result.text));
     } catch (error) {
+      if (isAiLimitError(error)) throw error;
       this.logger.warn(`repository onboarding fallback: ${error instanceof Error ? error.message : 'unknown'}`);
     }
 
@@ -199,7 +201,7 @@ export class OnboardingService {
           tree: context.tree.slice(0, 180).join('\n'),
           language: issue.language ?? '',
         }),
-        temperature: Math.min(allowance.settings.temperature, 0.4),
+        temperature: allowance.settings.temperature,
         maxOutputTokens: 1600,
         timeoutMs: 20_000,
         model: 'gemini-2.5-flash-lite',
@@ -252,6 +254,7 @@ export class OnboardingService {
       });
       generated = IssueGeneratedSchema.parse(parseJsonObject(result.text));
     } catch (error) {
+      if (isAiLimitError(error)) throw error;
       this.logger.warn(`issue onboarding fallback: ${error instanceof Error ? error.message : 'unknown'}`);
     }
 

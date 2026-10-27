@@ -19,6 +19,7 @@ Global conventions (base URL, auth header, error shape, pagination) live in [`..
 | A2.7 | GET/POST/PATCH/DELETE | `/saved/lists[/:id]` | Developer | Lists CRUD | `{name}` | SavedList / detail | 403, 404, 409 |
 | A2.8 | POST/PATCH/DELETE | `/saved/items[/:id]` | Developer | Add/move/remove | `{issueId\|repoFullName, listId}` | SavedItem | 403, 404 |
 | A2.9 | POST | `/saved/items/:id/select` | Developer | Select from Saved | — | Selection | 403, 404, 409 |
+| A2.10 | GET | `/selection/active` | Developer | Active issue | — | Selection or null | 401 |
 
 ## 2. Manual API test checklist
 

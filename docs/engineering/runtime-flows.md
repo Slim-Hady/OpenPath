@@ -96,3 +96,7 @@ guide, which is an AI feature by definition and says so.
 - Sync: `sequences/06-progress-sync.md`
 - Notifications: `sequences/07-notifications.md`
 - Outreach: `sequences/08-outreach.md`
+- Learning: `sequences/09-learning.md`
+- Public profile: `sequences/10-public-profile.md`
+- Contributor search: `sequences/11-contributor-search.md`
+- Admin: `sequences/12-admin.md`

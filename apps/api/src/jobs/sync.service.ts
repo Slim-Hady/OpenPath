@@ -22,12 +22,15 @@ export class SyncService {
     private readonly admin: AdminService,
   ) {}
 
-  async syncProgress(): Promise<{ checked: number; changed: number }> {
+  async syncProgress(userId?: string): Promise<{ checked: number; changed: number }> {
     const staleBefore = new Date(Date.now() - 5 * 60_000);
     const selections = await this.prisma.selection.findMany({
       where: {
+        ...(userId ? { userId } : {}),
         status: { in: ['IN_PROGRESS', 'PR_OPEN'] },
-        OR: [{ lastSyncedAt: null }, { lastSyncedAt: { lt: staleBefore } }],
+        ...(userId
+          ? {}
+          : { OR: [{ lastSyncedAt: null }, { lastSyncedAt: { lt: staleBefore } }] }),
       },
       include: { issue: true, user: { select: { id: true, githubLogin: true } } },
       orderBy: { lastSyncedAt: 'asc' },
@@ -70,6 +73,28 @@ export class SyncService {
             lastSyncedAt: new Date(),
           },
         });
+        if (pull) {
+          const since = selection.lastSyncedAt ?? selection.selectedAt;
+          const activity = await this.github
+            .pullActivity(selection.userId, prUrl ?? pull.url, since)
+            .catch(() => []);
+          for (const event of activity.slice(0, 5)) {
+            if (event.author && event.author === selection.user.githubLogin) continue;
+            await this.notifications
+              .create({
+                userId: selection.userId,
+                type: 'PR_ACTIVITY',
+                title:
+                  event.type === 'review'
+                    ? `New review from @${event.author}`
+                    : `New comment from @${event.author}`,
+                body: event.body.slice(0, 220) || 'Open the pull request to read it.',
+                link: `/issues/${encodeURIComponent(selection.issue.id)}?tab=progress`,
+                dedupeKey: `pr-activity:${selection.id}:${event.type}:${event.id}`,
+              })
+              .catch(() => null);
+          }
+        }
         if (statusChanged || prChanged) {
           changed += 1;
           const dedupeKey = `sync:${selection.id}:${nextStatus}:${prUrl ?? 'none'}`;
@@ -103,6 +128,11 @@ export class SyncService {
               `badge:${selection.userId}:${selection.id}`,
             );
           } else if (nextStatus === 'PR_OPEN') {
+            await this.queue.add(
+              QUEUES.gamification,
+              { userId: selection.userId },
+              `badge:${selection.userId}:${selection.id}`,
+            );
             await this.notifications
               .create({
                 userId: selection.userId,
@@ -188,16 +218,16 @@ export class SyncService {
     });
   }
 
-  async enqueueDigests(): Promise<void> {
+  async enqueueDigests(frequency: 'DAILY' | 'WEEKLY'): Promise<void> {
     const users = await this.prisma.notificationPreference.findMany({
-      where: { frequency: { not: 'INSTANT' }, channels: { has: 'EMAIL' } },
+      where: { frequency, channels: { has: 'EMAIL' } },
       select: { userId: true },
     });
     for (const user of users) {
       await this.queue.add(
         QUEUES.notificationDigest,
         { userId: user.userId },
-        `digest:${user.userId}:${new Date().toISOString().slice(0, 10)}`,
+        `digest:${frequency}:${user.userId}:${new Date().toISOString().slice(0, 10)}`,
       );
     }
   }
@@ -226,6 +256,10 @@ export class SyncService {
   }
 
   async deliverDigest(userId: string): Promise<void> {
+    const preference = await this.prisma.notificationPreference.findUnique({
+      where: { userId },
+    });
+    if (!preference || preference.frequency === 'INSTANT') return;
     const unsent = await this.prisma.notification.findMany({
       where: { userId, emailedAt: null, createdAt: { gte: new Date(Date.now() - 7 * 86_400_000) } },
       orderBy: { createdAt: 'desc' },
@@ -237,7 +271,7 @@ export class SyncService {
     if (!first) return;
     const sent = await this.email.send({
       to: first.user.email,
-      subject: `${unsent.length} updates from OpenSource-helper`,
+      subject: `${unsent.length} ${preference.frequency === 'WEEKLY' ? 'weekly' : 'daily'} updates from OpenSource-helper`,
       text: unsent.map((item) => `- ${item.title}: ${item.body}`).join('\n'),
     });
     if (sent) {

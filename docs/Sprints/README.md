@@ -52,11 +52,11 @@ Tick a column when the file is complete. This is the quickest way to see what is
 | Sprint | Spec | API | Tests | Review | Signed off |
 |---|---|---|---|---|---|
 | 0 | [00-sprint](sprint0/00-sprint.md) | — | — | [01-review](sprint0/01-review.md) | ☐ |
-| 1 | [00-sprint](sprint1/00-sprint.md) | [01-api](sprint1/01-api.md) | [02-testing](sprint1/02-testing.md) | [03-review](sprint1/03-review.md) | ☐ |
-| 2 | [00-sprint](sprint2/00-sprint.md) | [01-api](sprint2/01-api.md) | [02-testing](sprint2/02-testing.md) | [03-review](sprint2/03-review.md) | ☐ |
-| 3 | [00-sprint](sprint3/00-sprint.md) | [01-api](sprint3/01-api.md) | [02-testing](sprint3/02-testing.md) | [03-review](sprint3/03-review.md) | ☐ |
-| 4 | [00-sprint](sprint4/00-sprint.md) | [01-api](sprint4/01-api.md) | [02-testing](sprint4/02-testing.md) | [03-review](sprint4/03-review.md) | ☐ |
-| 5 | [00-sprint](sprint5/00-sprint.md) | [01-api](sprint5/01-api.md) | [02-testing](sprint5/02-testing.md) | [03-review](sprint5/03-review.md) | ☐ |
+| 1 | [00-sprint](sprint1/00-sprint.md) | [01-api](sprint1/01-api.md) | [02-testing](sprint1/02-testing.md) | [03-review](sprint1/03-review.md) | ◐ automated |
+| 2 | [00-sprint](sprint2/00-sprint.md) | [01-api](sprint2/01-api.md) | [02-testing](sprint2/02-testing.md) | [03-review](sprint2/03-review.md) | ◐ automated |
+| 3 | [00-sprint](sprint3/00-sprint.md) | [01-api](sprint3/01-api.md) | [02-testing](sprint3/02-testing.md) | [03-review](sprint3/03-review.md) | ◐ automated |
+| 4 | [00-sprint](sprint4/00-sprint.md) | [01-api](sprint4/01-api.md) | [02-testing](sprint4/02-testing.md) | [03-review](sprint4/03-review.md) | ◐ automated |
+| 5 | [00-sprint](sprint5/00-sprint.md) | [01-api](sprint5/01-api.md) | [02-testing](sprint5/02-testing.md) | [03-review](sprint5/03-review.md) | ◐ automated |
 
 ## Workflow per sprint
 

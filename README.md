@@ -54,7 +54,8 @@ pnpm smoke                         # live web + api + roles
 pnpm check:secrets                 # before every push
 ```
 
-Integration tests use a local `osh_test` database, never Supabase.
+Integration tests use a local `osh_test` database, never Supabase. The scoped script applies the migration first:
+`pnpm --filter @osh/api test:integration -- --runInBand`.
 
 ## Repository map
 

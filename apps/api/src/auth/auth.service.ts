@@ -1,11 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AppError } from '../common/errors';
 import type { RequestUser } from '../common/current-user.decorator';
 import type { Role } from '@osh/contracts';
 
 export interface SupabaseClaims {
   sub: string;
   email?: string;
+  email_verified?: boolean;
   user_metadata?: Record<string, unknown>;
   app_metadata?: Record<string, unknown>;
 }
@@ -38,6 +40,11 @@ export class AuthService {
 
     const byEmail = await this.prisma.user.findUnique({ where: { email } });
     if (byEmail) {
+      if (!canLinkByEmail(claims)) {
+        throw AppError.forbidden(
+          'Verify this email address before linking it to an existing account.',
+        );
+      }
       const linked = await this.prisma.user.update({
         where: { id: byEmail.id },
         data: { authId, lastSeenAt: new Date() },
@@ -93,6 +100,10 @@ export class AuthService {
       role: user.role as Role,
     };
   }
+}
+
+export function canLinkByEmail(claims: SupabaseClaims): boolean {
+  return claims.email_verified === true;
 }
 
 function firstString(...values: unknown[]): string | undefined {

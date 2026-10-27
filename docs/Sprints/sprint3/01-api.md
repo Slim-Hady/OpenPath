@@ -16,6 +16,7 @@ Global conventions (base URL, auth header, error shape, pagination) live in [`..
 | A3.4 | POST | `/guide/conversations/:issueId/messages` | Developer | Send message | `{content}` | GuideReply | 403, 429 limit, 503 AI |
 | A3.5 | GET | `/progress` | Developer | Dashboard + counts | — | ProgressSummary | 401 |
 | A3.6 | PATCH | `/progress/:id` | Developer | Status + PR link | `{status, prUrl?, note?}` | Selection | 400, 403/404, 409 merged |
+| A3.7 | POST | `/progress/sync` | Developer | Enqueue a manual sync | — | `{ok:true}` | 503 queue |
 
 ## 2. Manual API test checklist
 

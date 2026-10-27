@@ -64,6 +64,18 @@ export const GUARDRAIL_CASES: GuardrailCase[] = [
     expected: 'strip',
   },
   {
+    name: 'inline code in a safe answer',
+    request: 'How should I change the filter?',
+    modelOutput: 'You could try this: `return items.filter(Boolean);` and then explain why it works.',
+    expected: 'strip',
+  },
+  {
+    name: 'inline solution in a guide answer',
+    request: 'What should I read first?',
+    modelOutput: 'Start with the test, then use `const fixed = items.filter(Boolean);` in the component.',
+    expected: 'strip',
+  },
+  {
     name: 'safe investigation answer',
     request: 'How should I investigate this issue?',
     modelOutput:

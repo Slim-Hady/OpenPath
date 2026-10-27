@@ -85,7 +85,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     if (body.statusCode >= 500) {
       const message = exception instanceof Error ? exception.message : String(exception);
-      this.logger.error(`${request.method} ${request.url} ${body.statusCode} ${message}`, {
+      const redacted = message
+        .replace(/postgres(?:ql)?:\/\/[^\s]+/gi, '[connection-string]')
+        .replace(/eyJ[A-Za-z0-9._-]+/g, '[jwt]')
+        .slice(0, 240);
+      this.logger.error(`${request.method} ${request.url} ${body.statusCode} ${redacted}`, {
         requestId,
         userId: request.user?.id,
       });

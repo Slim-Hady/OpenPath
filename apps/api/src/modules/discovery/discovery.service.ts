@@ -17,6 +17,7 @@ import { GeminiService } from '../ai/gemini.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AI_FEATURE, RANKING_SYSTEM, rankingPrompt } from '../ai/prompts';
 import { parseJsonObject } from '../ai/json';
+import { isAiLimitError } from '../ai/limits';
 
 const RankingSchema = z.object({
   ranking: z
@@ -139,7 +140,7 @@ export class DiscoveryService {
       const result = await this.gemini.generateJson({
         system: RANKING_SYSTEM,
         prompt: rankingPrompt(profileText, JSON.stringify(candidates)),
-        temperature: Math.min(allowance.settings.temperature, 0.5),
+        temperature: allowance.settings.temperature,
         maxOutputTokens: 2000,
         timeoutMs: 8_000,
         model: 'gemini-2.5-flash-lite',
@@ -186,6 +187,7 @@ export class DiscoveryService {
       if (picked.length !== 3) throw new Error('AI did not return three usable ids');
       selected = picked;
     } catch (error) {
+      if (isAiLimitError(error)) throw error;
       if (error instanceof AppError && error.code.startsWith('AI_')) {
         this.logger.warn(`ranking fallback: ${error.code}`);
         fallbackReason = 'The AI is unavailable. These issues were ranked by matching rules.';

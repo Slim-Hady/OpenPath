@@ -25,23 +25,8 @@ FR-8.1–8.10. Acceptance: status changes within 5 minutes of a PR/merge; histor
 
 ## 5. Sequence diagram
 
-```mermaid
-sequenceDiagram
-  autonumber
-  participant U as Developer/Admin
-  participant W as Next web
-  participant A as Nest API
-  participant D as Postgres
-  participant X as External
-  U->>W: Update or sync progress
-  W->>A: request + Bearer access token
-  A->>A: verify JWT, role, ownership
-  A->>D: read/write owned rows
-  A->>X: provider call (only when needed)
-  X-->>A: bounded result
-  A-->>W: Zod-shaped response
-  W-->>U: screen state
-```
+Canonical sequence: [progress and sync](../engineering/diagrams/sequences/06-progress-sync.md).
+The diagram is the source of truth for this flow and maps to the files above.
 
 ## 6. Data
 

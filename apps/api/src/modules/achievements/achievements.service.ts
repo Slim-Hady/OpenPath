@@ -20,6 +20,7 @@ export class AchievementsService {
   ) {}
 
   async get(userId: string): Promise<Achievements> {
+    await this.updateStreak(userId).catch(() => undefined);
     const [badges, userBadges, streak, profile, metrics] = await Promise.all([
       this.prisma.badge.findMany({ orderBy: { target: 'asc' } }),
       this.prisma.userBadge.findMany({ where: { userId } }),
@@ -96,7 +97,12 @@ export class AchievementsService {
 
   private async metrics(userId: string): Promise<{ pr: number; merged: number; selected: number }> {
     const [pr, merged, selected] = await Promise.all([
-      this.prisma.selection.count({ where: { userId, status: 'PR_OPEN' } }),
+      this.prisma.selection.count({
+        where: {
+          userId,
+          OR: [{ status: { in: ['PR_OPEN', 'MERGED'] } }, { prUrl: { not: null } }],
+        },
+      }),
       this.prisma.selection.count({ where: { userId, status: 'MERGED' } }),
       this.prisma.selection.count({ where: { userId } }),
     ]);

@@ -25,23 +25,8 @@ FR-16.1–16.9. Acceptance: each badge awarded once; locked requirements visible
 
 ## 5. Sequence diagram
 
-```mermaid
-sequenceDiagram
-  autonumber
-  participant U as Developer/Admin
-  participant W as Next web
-  participant A as Nest API
-  participant D as Postgres
-  participant X as External
-  U->>W: View badges and streaks
-  W->>A: request + Bearer access token
-  A->>A: verify JWT, role, ownership
-  A->>D: read/write owned rows
-  A->>X: provider call (only when needed)
-  X-->>A: bounded result
-  A-->>W: Zod-shaped response
-  W-->>U: screen state
-```
+Canonical sequence: [badges and streaks](../engineering/diagrams/sequences/06-progress-sync.md).
+The diagram is the source of truth for this flow and maps to the files above.
 
 ## 6. Data
 
@@ -65,7 +50,7 @@ Rules in code, awards in the database. Rejected: manual badge assignment and cli
 
 ## 11. Tests and evidence
 
-Live achievements page; worker evaluation is idempotent by unique user+badge; badge award is asserted through the notification dedupe key.
+Unit test proves FIRST_PR is awarded on PR_OPEN without waiting for a merge. Integration covers the badge award and notification dedupe; live achievements page in compose.
 
 Evidence lives under `dev/evidence/slice-5/`. The PR body records the
 exact commands and result.
