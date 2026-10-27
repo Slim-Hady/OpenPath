@@ -1,0 +1,15 @@
+meta {
+  name: Progress
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/progress
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{devToken}}
+}

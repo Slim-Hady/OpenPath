@@ -1,0 +1,16 @@
+meta {
+  name: Saved list detail
+  type: http
+  seq: 26
+}
+
+get {
+  url: {{baseUrl}}/saved/lists/{{listId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{devToken}}
+  Content-Type: application/json
+}

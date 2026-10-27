@@ -2,7 +2,7 @@
 
 > Back to [sprint specification](00-sprint.md) · [testing](02-testing.md) · [review](03-review.md)
 
-Status: **Endpoints are to be defined in this sprint.** Replace every `TBD` with the real method and path before implementation, then run the manual checklist.
+Status: **defined and shipped.** The table matches the implementation; run the manual checklist against the demo stack.
 
 Global conventions (base URL, auth header, error shape, pagination) live in [`../../API.md`](../../API.md). Define them once and keep them consistent here.
 
@@ -10,15 +10,15 @@ Global conventions (base URL, auth header, error shape, pagination) live in [`..
 
 | ID | Method | Path | Auth | Purpose | Request | Response | Errors |
 |---|---|---|---|---|---|---|---|
-| A4.1 | TBD | TBD | Developer | Get progress history for an issue | issue id | Dated history | 403 not owner |
-| A4.2 | TBD | TBD | Developer | Get and update notification preferences | channels, frequency, event types | Preferences | 400 invalid channel/frequency |
-| A4.3 | TBD | TBD | Developer | List notifications and mark read | notification id | Notifications/read state | 403 not owner |
-| A4.4 | TBD | TBD | Developer | Get badges, locked requirements, streaks and visibility | — | Achievements | 401 no session |
-| A4.5 | TBD | TBD | Developer | Update badge visibility for the public profile | badge ids | Visibility settings | 400 unknown badge |
-| A4.6 | TBD | TBD | Developer | Get account history and statistics | — | Issues, chats, counts | 403 not owner |
-| A4.7 | TBD | TBD | Developer | Delete account and personal data | confirmation | Deletion accepted | 401 no session |
-| A4.8 | TBD | TBD | Admin | Get platform usage metrics | — | Users, suggestions/regenerations, status counts | 403 not Admin |
-| A4.9 | TBD | TBD | Admin | Get AI usage for a period | start, end, feature, page | Token totals | 400 invalid period, 403 not Admin |
+| A4.1 | GET | `/progress/:id/history` | Developer | Dated history | — | ProgressHistory | 403/404 |
+| A4.2 | GET/PUT | `/notifications/preferences` | Developer | Channels/frequency/types | UpdateNotificationPreferences | NotificationPreferences | 400 |
+| A4.3 | GET/PATCH/POST | `/notifications`, `/:id/read`, `/read-all` | Developer | List/mark read | — | NotificationList/Dto | 403/404 |
+| A4.4 | GET | `/achievements` | Developer | Badges/streak/visibility | — | Achievements | 401 |
+| A4.5 | PATCH | `/achievements/visibility` | Developer | Badge public flag | `{badgeCode, publicVisible}` | `{ok:true}` | 400, 409 |
+| A4.6 | GET | `/me/history`, `/me/stats` | Developer | Issues/chats/counts | — | AccountHistory | 403/404 |
+| A4.7 | DELETE | `/me` | Developer | Delete account + data | — | `{requested:true}` | 401 |
+| A4.8 | GET | `/admin/metrics` | Admin | Users/suggestions/status | start?, end? | AdminMetrics | 403 |
+| A4.9 | GET | `/admin/ai-usage` | Admin | Tokens by feature/period | start, end, feature | AiUsageSummary | 400, 403 |
 
 ## 2. Manual API test checklist
 

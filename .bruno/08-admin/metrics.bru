@@ -1,0 +1,16 @@
+meta {
+  name: Admin metrics
+  type: http
+  seq: 34
+}
+
+get {
+  url: {{baseUrl}}/admin/metrics
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+  Content-Type: application/json
+}

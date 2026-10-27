@@ -1,0 +1,16 @@
+meta {
+  name: Issue onboarding
+  type: http
+  seq: 17
+}
+
+get {
+  url: {{baseUrl}}/onboarding/issue/{{issueId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{devToken}}
+  Content-Type: application/json
+}

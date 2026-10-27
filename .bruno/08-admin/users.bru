@@ -1,0 +1,16 @@
+meta {
+  name: Admin users
+  type: http
+  seq: 35
+}
+
+get {
+  url: {{baseUrl}}/admin/users
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+  Content-Type: application/json
+}

@@ -28,14 +28,18 @@ require_docker() {
     echo "Docker is not installed. See dev/SETUP/00-prerequisites.md" >&2
     exit 1
   fi
-  if ! docker info >/dev/null 2>&1; then
-    echo "Docker is installed but the daemon is not reachable." >&2
-    echo "Start Docker, or log out and back in after 'usermod -aG docker $USER'." >&2
-    exit 1
+  if docker info >/dev/null 2>&1; then
+    return
   fi
+  if command -v sg >/dev/null 2>&1 && sg docker -c 'docker info' >/dev/null 2>&1; then
+    exec sg docker -c "cd '$ROOT_DIR' && ./scripts/dev-services.sh $*"
+  fi
+  echo "Docker is installed but the daemon is not reachable." >&2
+  echo "Start Docker, or log out and back in after 'usermod -aG docker $USER'." >&2
+  exit 1
 }
 
-require_docker
+require_docker "$@"
 
 case "${1:-up}" in
   up)

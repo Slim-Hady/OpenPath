@@ -1,0 +1,16 @@
+meta {
+  name: Issue details
+  type: http
+  seq: 13
+}
+
+get {
+  url: {{baseUrl}}/discovery/issues/{{issueId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{devToken}}
+  Content-Type: application/json
+}

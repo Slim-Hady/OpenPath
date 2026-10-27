@@ -1,0 +1,16 @@
+meta {
+  name: CV status
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/cv
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{devToken}}
+  Content-Type: application/json
+}

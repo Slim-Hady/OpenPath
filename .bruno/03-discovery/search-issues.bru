@@ -1,0 +1,16 @@
+meta {
+  name: Search issues
+  type: http
+  seq: 10
+}
+
+get {
+  url: {{baseUrl}}/discovery/issues?language=TypeScript&label=good%20first%20issue&activityDays=180
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{devToken}}
+  Content-Type: application/json
+}

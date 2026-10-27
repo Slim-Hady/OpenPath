@@ -2,7 +2,7 @@
 
 > Back to [sprint specification](00-sprint.md) · [testing](02-testing.md) · [review](03-review.md)
 
-Status: **Endpoints are to be defined in this sprint.** Replace every `TBD` with the real method and path before implementation, then run the manual checklist.
+Status: **defined and shipped.** The table matches the implementation; run the manual checklist against the demo stack.
 
 Global conventions (base URL, auth header, error shape, pagination) live in [`../../API.md`](../../API.md). Define them once and keep them consistent here.
 
@@ -10,15 +10,15 @@ Global conventions (base URL, auth header, error shape, pagination) live in [`..
 
 | ID | Method | Path | Auth | Purpose | Request | Response | Errors |
 |---|---|---|---|---|---|---|---|
-| A2.1 | TBD | TBD | Developer | Search open GitHub issues using profile and filters | language, label, activity, org, repo, page | Issue candidates | 400 invalid filter, 429 rate limit |
-| A2.2 | TBD | TBD | Developer | Get three recommendations | search/filter context | 3 ranked issues + reasons | 409 incomplete profile, 503 AI unavailable |
-| A2.3 | TBD | TBD | Developer | Regenerate recommendations | previous recommendation set | 3 different ranked issues | 409 no previous set |
-| A2.4 | TBD | TBD | Developer | Get issue details | issue id | Repository, requirements, reason | 404 issue not found |
-| A2.5 | TBD | TBD | Developer | Select and confirm an issue | issue id, confirm | Selection with In Progress | 409 already selected, 404 issue |
-| A2.6 | TBD | TBD | Developer | Ignore an issue | issue id | Ignored state | 409 already selected |
-| A2.7 | TBD | TBD | Developer | List, create, rename and delete saved lists | list name | Saved lists | 403 not owner |
-| A2.8 | TBD | TBD | Developer | Add, move and remove saved items | list id, repository/issue id | Saved item | 403 not owner, 404 missing |
-| A2.9 | TBD | TBD | Developer | Select an issue from saved items | saved item id, confirm | Selection with In Progress | 403 not owner, 409 unavailable |
+| A2.1 | GET | `/discovery/issues` | Developer | Search open issues | language, label, activityDays, org, repo, page | DiscoveryResponse | 400, 429 GitHub |
+| A2.2 | POST | `/discovery/recommendations` | Developer | Three ranked issues | RecommendationRequest | RecommendationResponse | 409 profile/pool, 429 AI |
+| A2.3 | POST | `/discovery/recommendations/regenerate` | Developer | Different three | RecommendationRequest | RecommendationResponse | 409 no previous set |
+| A2.4 | GET | `/discovery/issues/:id` | Developer | Issue details | encoded `owner/repo#n` | IssueDetails | 404 |
+| A2.5 | POST | `/selection` | Developer | Confirm selection | `{issueId, confirmed:true}` | Selection | 400, 409 closed/already/active |
+| A2.6 | POST | `/discovery/ignore` | Developer | Ignore an issue | `{issueId}` | `{ok:true}` | 404, 409 selected |
+| A2.7 | GET/POST/PATCH/DELETE | `/saved/lists[/:id]` | Developer | Lists CRUD | `{name}` | SavedList / detail | 403, 404, 409 |
+| A2.8 | POST/PATCH/DELETE | `/saved/items[/:id]` | Developer | Add/move/remove | `{issueId\|repoFullName, listId}` | SavedItem | 403, 404 |
+| A2.9 | POST | `/saved/items/:id/select` | Developer | Select from Saved | — | Selection | 403, 404, 409 |
 
 ## 2. Manual API test checklist
 

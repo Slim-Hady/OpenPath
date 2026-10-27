@@ -27,6 +27,8 @@ flowchart TB
 
 At the target scale (≈2,000 users) this runs on one host: 1 `web`, 1 `api`, 1 `worker`, 1 Redis, managed Postgres.
 
+In the **demo compose** a local Postgres service substitutes for the managed one so the golden path does not depend on a free project staying awake; Supabase still supplies Auth and Storage. Production uses the Supabase poolers. See `decisions/0006-local-postgres.md`.
+
 ## 2. Request flow
 
 1. The browser calls `web`. Session cookies are set on the `web` origin only.

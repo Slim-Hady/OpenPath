@@ -1,0 +1,634 @@
+// OpenSource-helper data model.
+// One database, one owner (the API/worker). Ordering follows the sprints.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  DEVELOPER
+  MAINTAINER
+  ADMIN
+}
+
+enum ExperienceLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum CvStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum AiFeature {
+  CV_EXTRACTION
+  ISSUE_MATCHING
+  ONBOARDING
+  AI_GUIDE
+}
+
+enum SuggestionKind {
+  SUGGESTED
+  REGENERATED
+}
+
+enum ProgressStatus {
+  IN_PROGRESS
+  PR_OPEN
+  MERGED
+  IGNORED
+  PAUSED
+}
+
+enum ProgressSource {
+  MANUAL
+  SYNC
+}
+
+enum SavedIssueState {
+  OPEN
+  CLOSED
+  TAKEN
+  UNKNOWN
+}
+
+enum NotificationType {
+  NEW_MATCH
+  PR_ACTIVITY
+  SAVED_ISSUE_CLOSED
+  BADGE_EARNED
+  OUTREACH_REQUEST
+  OUTREACH_ACCEPTED
+  OUTREACH_MESSAGE
+  SYSTEM
+}
+
+enum NotificationFrequency {
+  INSTANT
+  DAILY
+  WEEKLY
+}
+
+enum OutreachType {
+  MENTORSHIP
+  RECRUITMENT
+}
+
+enum OutreachStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  BLOCKED
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  DONE
+  FAILED
+}
+
+model User {
+  id               String    @id @default(cuid())
+  authId           String    @unique
+  email            String    @unique
+  name             String
+  username         String?   @unique
+  bio              String?   @db.Text
+  avatarUrl        String?
+  role             Role      @default(DEVELOPER)
+  githubLogin      String?
+  githubTokenEnc   String?   @db.Text
+  githubConnectedAt DateTime?
+  lastSeenAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  profile            DeveloperProfile?
+  skills             UserSkill[]
+  languages          UserLanguage[]
+  cvFiles            CvFile[]
+  aiUsage            AiUsage[]
+  suggestions        SuggestionEvent[]
+  recommendations    Recommendation[]
+  selections         Selection[]
+  ignoredIssues      IgnoredIssue[]
+  savedLists         SavedList[]
+  conversations      ChatConversation[]
+  notifications      Notification[]
+  notificationPrefs  NotificationPreference?
+  badges             UserBadge[]
+  streak             Streak?
+  publicProfile      PublicProfile?
+  sentOutreach       OutreachRequest[] @relation("OutreachSender")
+  receivedOutreach   OutreachRequest[] @relation("OutreachRecipient")
+  outreachMessages   OutreachMessage[]
+  blockedUsers       BlockedUser[]     @relation("Blocker")
+  blockedBy          BlockedUser[]     @relation("Blocked")
+  deletionRequests   DeletionRequest[]
+  aiSettingsUpdated  AiSetting[]       @relation("AiSettingEditor")
+
+  @@index([role])
+  @@index([lastSeenAt])
+}
+
+model DeveloperProfile {
+  id              String           @id @default(cuid())
+  userId          String           @unique
+  description     String?          @db.Text
+  experienceLevel ExperienceLevel?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Skill {
+  id    String      @id @default(cuid())
+  name  String      @unique
+  users UserSkill[]
+}
+
+model UserSkill {
+  userId String
+  skillId String
+  source String   @default("manual") // manual | cv | github
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill  Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@id([userId, skillId])
+  @@index([skillId])
+}
+
+model Language {
+  id    String         @id @default(cuid())
+  name  String         @unique
+  users UserLanguage[]
+}
+
+model UserLanguage {
+  userId     String
+  languageId String
+  source     String   @default("manual")
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  language   Language @relation(fields: [languageId], references: [id], onDelete: Cascade)
+
+  @@id([userId, languageId])
+  @@index([languageId])
+}
+
+model CvFile {
+  id         String   @id @default(cuid())
+  userId     String
+  storagePath String
+  fileName   String
+  mimeType   String
+  size       Int
+  status     CvStatus @default(PENDING)
+  extracted  Json?
+  rawText    String?  @db.Text
+  error      String?  @db.Text
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([status])
+}
+
+model AiSetting {
+  id                 String   @id @default("global")
+  maxTokensPerUser   Int      @default(20000)
+  temperature        Float    @default(0.4)
+  usageLimitUsd      Float    @default(5)
+  updatedById        String?
+  updatedAt          DateTime @updatedAt
+  updatedBy          User?    @relation("AiSettingEditor", fields: [updatedById], references: [id], onDelete: SetNull)
+}
+
+model AiUsage {
+  id               String    @id @default(cuid())
+  userId           String
+  feature          AiFeature
+  model            String
+  promptTokens     Int       @default(0)
+  completionTokens Int       @default(0)
+  totalTokens      Int       @default(0)
+  costUsd          Float     @default(0)
+  requestId        String?
+  createdAt        DateTime  @default(now())
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([feature, createdAt])
+}
+
+model AiUsageDaily {
+  id               String   @id @default(cuid())
+  day              DateTime @db.Date
+  feature          AiFeature
+  requests         Int      @default(0)
+  promptTokens     Int      @default(0)
+  completionTokens Int      @default(0)
+  totalTokens      Int      @default(0)
+  costUsd          Float    @default(0)
+  updatedAt        DateTime @updatedAt
+
+  @@unique([day, feature])
+  @@index([day])
+}
+
+model SuggestionEvent {
+  id        String         @id @default(cuid())
+  userId    String
+  issueId   String
+  kind      SuggestionKind
+  batchId   String
+  createdAt DateTime       @default(now())
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  issue     GithubIssue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([kind, createdAt])
+}
+
+model GithubIssue {
+  id              String           @id
+  number          Int
+  repoFullName    String
+  organization    String?
+  title           String           @db.Text
+  body            String?          @db.Text
+  url             String
+  state           String           @default("open")
+  labels          String[]
+  language        String?
+  level           ExperienceLevel?
+  assigned        Boolean          @default(false)
+  repoDescription String?          @db.Text
+  stars           Int              @default(0)
+  defaultBranch   String?
+  repoUpdatedAt   DateTime?
+  activityAt      DateTime?
+  fetchedAt       DateTime         @default(now())
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  recommendations Recommendation[]
+  suggestions     SuggestionEvent[]
+  selections      Selection[]
+  ignoredBy       IgnoredIssue[]
+  savedItems      SavedItem[]
+  onboarding      IssueOnboarding?
+
+  @@unique([repoFullName, number])
+  @@index([repoFullName])
+  @@index([language, state, activityAt])
+  @@index([organization])
+  @@index([level])
+}
+
+model Recommendation {
+  id        String    @id @default(cuid())
+  batchId   String
+  userId    String
+  issueId   String
+  rank      Int
+  reason    String    @db.Text
+  fallback  Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  issue     GithubIssue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  @@unique([batchId, issueId])
+  @@index([userId, createdAt])
+}
+
+model Selection {
+  id           String         @id @default(cuid())
+  userId       String
+  issueId      String
+  status       ProgressStatus @default(IN_PROGRESS)
+  prUrl        String?
+  selectedAt   DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  lastSyncedAt DateTime?
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  issue        GithubIssue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  events       ProgressEvent[]
+
+  @@unique([userId, issueId])
+  @@index([userId, status])
+  @@index([status, lastSyncedAt])
+}
+
+model ProgressEvent {
+  id          String         @id @default(cuid())
+  selectionId String
+  status      ProgressStatus
+  source      ProgressSource
+  prUrl       String?
+  note        String?        @db.Text
+  dedupeKey   String?        @unique
+  createdAt   DateTime       @default(now())
+  selection   Selection      @relation(fields: [selectionId], references: [id], onDelete: Cascade)
+
+  @@index([selectionId, createdAt])
+}
+
+model IgnoredIssue {
+  id        String      @id @default(cuid())
+  userId    String
+  issueId   String
+  createdAt DateTime    @default(now())
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  issue     GithubIssue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, issueId])
+  @@index([userId])
+}
+
+model SavedList {
+  id        String      @id @default(cuid())
+  userId    String
+  name      String
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     SavedItem[]
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model SavedItem {
+  id            String          @id @default(cuid())
+  listId        String
+  userId        String
+  issueId       String?
+  repoFullName  String?
+  state         SavedIssueState @default(UNKNOWN)
+  flaggedAt     DateTime?
+  createdAt     DateTime        @default(now())
+  list          SavedList       @relation(fields: [listId], references: [id], onDelete: Cascade)
+  issue         GithubIssue?    @relation(fields: [issueId], references: [id], onDelete: SetNull)
+
+  @@unique([listId, issueId])
+  @@index([userId])
+  @@index([issueId])
+  @@index([state])
+}
+
+model RepositoryOnboarding {
+  id              String   @id @default(cuid())
+  repoFullName    String
+  commitSha       String?
+  overview        String   @db.Text
+  structure       String   @db.Text
+  technologies    String[]
+  firstFiles      Json
+  setup           String[]
+  run             String[]
+  test            String[]
+  branchGuidance  String[]
+  contributing    String?  @db.Text
+  prGuidance      String[]
+  generatedFrom   String
+  sourceUpdatedAt DateTime?
+  generatedAt     DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([repoFullName, commitSha])
+  @@index([repoFullName])
+}
+
+model IssueOnboarding {
+  id              String      @id @default(cuid())
+  issueId         String      @unique
+  summary         String      @db.Text
+  requirements    Json
+  relatedFiles    Json
+  researchTopics  String[]
+  resources       Json
+  generatedFrom   String
+  sourceUpdatedAt DateTime?
+  generatedAt     DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  issue           GithubIssue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+}
+
+model ChatConversation {
+  id        String        @id @default(cuid())
+  userId    String
+  issueId   String
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  ChatMessage[]
+
+  @@unique([userId, issueId])
+  @@index([userId])
+}
+
+model ChatMessage {
+  id               String           @id @default(cuid())
+  conversationId   String
+  role             String
+  content          String           @db.Text
+  guardrailOutcome String?
+  tokens           Int?
+  createdAt        DateTime         @default(now())
+  conversation     ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String           @db.Text
+  link      String?
+  readAt    DateTime?
+  dedupeKey String?
+  emailedAt DateTime?
+  createdAt DateTime         @default(now())
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dedupeKey])
+  @@index([userId, readAt, createdAt])
+}
+
+model NotificationPreference {
+  id        String                @id @default(cuid())
+  userId    String                @unique
+  channels  String[]              @default(["IN_APP"])
+  frequency NotificationFrequency @default(INSTANT)
+  eventTypes Json                 @default("{}")
+  updatedAt DateTime              @updatedAt
+  user      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Badge {
+  id          String      @id @default(cuid())
+  code        String      @unique
+  name        String
+  description String
+  requirement String
+  target      Int         @default(1)
+  users       UserBadge[]
+}
+
+model UserBadge {
+  userId        String
+  badgeId       String
+  awardedAt     DateTime @default(now())
+  publicVisible Boolean  @default(true)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge         Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@id([userId, badgeId])
+  @@index([badgeId])
+}
+
+model Streak {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  current        Int      @default(0)
+  longest        Int      @default(0)
+  lastActivityOn DateTime? @db.Date
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PublicProfile {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  handle            String   @unique
+  published         Boolean  @default(false)
+  mentorOptIn       Boolean  @default(false)
+  showSkills        Boolean  @default(true)
+  showContributions Boolean  @default(true)
+  showBadges        Boolean  @default(true)
+  showStreak        Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([mentorOptIn, published])
+}
+
+model OutreachRequest {
+  id           String         @id @default(cuid())
+  senderId     String
+  recipientId  String
+  type         OutreachType
+  message      String         @db.Text
+  status       OutreachStatus @default(PENDING)
+  createdAt    DateTime       @default(now())
+  respondedAt  DateTime?
+  sender       User           @relation("OutreachSender", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient    User           @relation("OutreachRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  conversation OutreachConversation?
+
+  @@index([recipientId, status])
+  @@index([senderId, createdAt])
+}
+
+model OutreachConversation {
+  id        String            @id @default(cuid())
+  requestId String            @unique
+  createdAt DateTime          @default(now())
+  request   OutreachRequest   @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  messages  OutreachMessage[]
+}
+
+model OutreachMessage {
+  id             String              @id @default(cuid())
+  conversationId String
+  senderId       String
+  body           String              @db.Text
+  createdAt      DateTime            @default(now())
+  conversation   OutreachConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User                @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+}
+
+model BlockedUser {
+  id        String   @id @default(cuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+  blocker   User     @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked   User     @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockedId])
+}
+
+model LearningResource {
+  id             String   @id @default(cuid())
+  slug           String   @unique
+  title          String
+  topic          String
+  summary        String
+  body           String   @db.Text
+  kind           String   @default("GUIDE")
+  externalUrl    String?
+  readingMinutes Int      @default(5)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([topic])
+}
+
+model AdminSnapshot {
+  id         String   @id @default(cuid())
+  data       Json
+  capturedAt DateTime @default(now())
+
+  @@index([capturedAt])
+}
+
+model JobRun {
+  id        String    @id @default(cuid())
+  key       String    @unique
+  status    JobStatus @default(PENDING)
+  attempts  Int       @default(0)
+  error     String?   @db.Text
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([status])
+}
+
+model DeletionRequest {
+  id          String    @id @default(cuid())
+  userId      String
+  requestedAt DateTime  @default(now())
+  completedAt DateTime?
+  cancelledAt DateTime?
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model SyncState {
+  id        String   @id @default(cuid())
+  scope     String   @unique
+  lastRunAt DateTime?
+  cursor    String?
+  errors    Int      @default(0)
+  updatedAt DateTime @updatedAt
+}

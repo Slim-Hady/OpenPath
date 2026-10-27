@@ -1,0 +1,16 @@
+meta {
+  name: Sync now
+  type: http
+  seq: 23
+}
+
+post {
+  url: {{baseUrl}}/progress/sync
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{devToken}}
+  Content-Type: application/json
+}

@@ -1,0 +1,43 @@
+{
+  "name": "opensource-helper",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "postinstall": "pnpm --filter @osh/contracts build",
+    "dev": "pnpm --parallel --filter @osh/api --filter @osh/web dev",
+    "dev:api": "pnpm --filter @osh/api dev",
+    "dev:web": "pnpm --filter @osh/web dev",
+    "dev:worker": "pnpm --filter @osh/api dev:worker",
+    "build": "pnpm --filter @osh/contracts build && pnpm --filter @osh/api build && pnpm --filter @osh/web build",
+    "lint": "pnpm -r --if-present lint",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm --filter @osh/contracts test && pnpm --filter @osh/api test && pnpm --filter @osh/web test",
+    "verify:env": "node scripts/verify-env.mjs",
+    "check:secrets": "node scripts/check-secrets.mjs",
+    "db:migrate": "pnpm --filter @osh/api exec prisma migrate dev",
+    "db:deploy": "pnpm --filter @osh/api exec prisma migrate deploy",
+    "db:seed": "pnpm --filter @osh/api seed",
+    "guardrail:eval": "pnpm --filter @osh/api guardrail:eval",
+    "check": "bash scripts/check.sh",
+    "smoke": "node scripts/smoke.mjs",
+    "jira:csv": "node scripts/generate-jira-csv.mjs",
+    "docker:up": "bash scripts/docker-up.sh",
+    "docker:down": "sg docker -c 'docker compose down'",
+    "services:up": "bash scripts/dev-services.sh up",
+    "services:down": "bash scripts/dev-services.sh down"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.37.0",
+    "eslint": "9.37.0",
+    "globals": "16.4.0",
+    "ioredis": "5.8.1",
+    "pdf-lib": "1.17.1",
+    "pg": "8.16.3",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.46.1"
+  }
+}

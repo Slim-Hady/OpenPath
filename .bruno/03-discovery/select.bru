@@ -1,0 +1,20 @@
+meta {
+  name: Select issue
+  type: http
+  seq: 14
+}
+
+post {
+  url: {{baseUrl}}/selection
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{devToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {"issueId":"REPLACE_WITH_ISSUE_ID","confirmed":true}
+}

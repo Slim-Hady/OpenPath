@@ -1,0 +1,20 @@
+meta {
+  name: Send outreach
+  type: http
+  seq: 33
+}
+
+post {
+  url: {{baseUrl}}/outreach
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{devToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {"recipientId":"REPLACE_WITH_RECIPIENT_ID","type":"MENTORSHIP","message":"Would you mentor me on my first contribution?"}
+}

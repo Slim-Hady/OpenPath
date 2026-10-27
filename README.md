@@ -1,26 +1,101 @@
-## Project Title
-OpenSource-helper: An AI-Guided Platform That Takes First-Time Developers From Choosing a
-GitHub Issue to a Merged Pull Request
+# OpenSource-helper
 
-### Description
-OpenSource-helper is a web platform that connects to a developer's GitHub account, learns the
-developer's skills and experience level, and recommends the three open-source issues that fit
-them best, with a short explanation of why each one fits. After the developer selects an issue,
-the platform guides the contribution: it explains the repository and the issue, links learning
-resources, and offers an AI guide that answers questions without ever writing the solution. It
-follows the issue through In Progress, PR Open, and Merged by syncing with GitHub.
-Developers and maintainers can also find active contributors in an organization or repository
-and send mentorship or recruitment requests. An Admin controls how much AI the platform
-uses.
+An AI-guided platform that takes a first-time developer from choosing a GitHub
+issue to a merged pull request. Issues are matched to skills, explained step by
+step, and tracked from In Progress to PR Open to Merged. The guide never writes
+the solution.
 
-| **Name** | **Service** |
-| :--- | :--- |
-| **Omar Mokhtar Tabanga** | FR-3: Manage CV Extraction<br>FR-9: Manage Repository Onboarding<br>FR-11: Manage AI Guide<br>FR-18: Manage Contributor Outreach |
-| **Mohamed Abdelhady Mohamed** | FR-4: Manage Issue Discovery<br>FR-5: Manage Issue Matching<br>FR-6: Manage Issue Selection<br>FR-15: Manage Public Contribution |
-| **Sondous Adel Metwalli Ibrahim** | FR-1: Manage Authentication<br>FR-7: Manage Saved Items<br>FR-8: Manage Progress<br>FR-13: Manage Notifications |
-| **Abdullrahman Hany Mohamed Alkady** | FR-2: Manage Developer Information<br>FR-16: Manage Gamification<br>FR-14: Manage Profile<br>FR-19: Manage Admin Dashboard |
-| **Abdelrahman Ahmed Sayed Mohamed** | FR-10: Manage Issue Onboarding<br>FR-12: Manage Learning Resources<br>FR-17: Manage Mentor & Contributor Search<br>FR-20: Manage AI Settings |
-                                  
+**Live demo:** `http://localhost:3000` after the quick start.
 
+## Stack
 
-[jira](https://omarsafd.atlassian.net/?continue=https%3A%2F%2Fomarsafd.atlassian.net%2Fwelcome%2Fsoftware%3FprojectId%3D10000&atlOrigin=eyJpIjoiZTRmMjczZWEwOTQzNDc5MDg3Mjk2YmVkNzI0ZmQ4OTMiLCJwIjoiamlyYS1zb2Z0d2FyZSJ9)
+pnpm workspace · Next.js 15 (App Router, Tailwind, TanStack Query, Zod) ·
+NestJS 11 · Prisma + PostgreSQL · Redis + BullMQ · Supabase Auth/Storage ·
+Gemini · Octokit. One API image also runs the worker.
+
+## Quick start
+
+Prerequisites: Node 22, pnpm 9, Docker + Compose, and a free Supabase project
+(see `dev/SETUP/01-supabase.md`). No paid service and no card.
+
+```bash
+cp .env.example .env          # fill it locally; never commit it
+pnpm install
+pnpm verify:env               # PASS/FAIL only; never prints a value
+docker compose up --build     # web + api + worker + redis + postgres + migrate
+pnpm db:seed                  # demo accounts, skills, badges, learning content
+```
+
+Open <http://localhost:3000>. Sign in as `dev@osh.dev` (password:
+`SEED_PASSWORD`, default `OpenSource!2026`; change it).
+
+For hot reload instead of containers:
+
+```bash
+./scripts/dev-services.sh up  # local Postgres + Redis
+pnpm db:deploy && pnpm db:seed
+pnpm dev                      # web :3000 + api :4000
+pnpm dev:worker               # second terminal
+```
+
+## Golden path
+
+Sign up → profile → three recommendations → select → onboarding → AI guide
+refusal → progress → merged → admin usage. The exact steps, accounts and
+fallbacks are in [`docs/DEMO.md`](docs/DEMO.md).
+
+## Tests and checks
+
+```bash
+pnpm check                         # lint + typecheck + unit
+pnpm --filter @osh/api test:integration -- --runInBand
+pnpm guardrail:eval                # 100% refusal fixture suite
+pnpm smoke                         # live web + api + roles
+pnpm check:secrets                 # before every push
+```
+
+Integration tests use a local `osh_test` database, never Supabase.
+
+## Repository map
+
+```text
+apps/web          Next.js UI and same-origin BFF proxy
+apps/api          NestJS API, Prisma schema, BullMQ processors
+apps/api/src/worker.ts  worker bootstrap (same image)
+packages/contracts  Zod request/response schemas (source of API truth)
+supabase/         RLS policies and SQL migrations not owned by Prisma
+docs/             requirements, sprint contracts, design, ADRs, features, PM1
+dev/              untracked setup kit, state, build log and evidence
+.github/          CI, GHCR publish, PR template
+scripts/          setup, verify, seed, smoke, compose, Jira/Bruno generators
+.bruno/           every endpoint as a runnable request
+```
+
+## Documentation
+
+- [`docs/HANDBOOK.md`](docs/HANDBOOK.md) — 45-minute tour.
+- [`docs/features/README.md`](docs/features/README.md) — one document per FR.
+- [`docs/engineering/diagrams/00-context.md`](docs/engineering/diagrams/00-context.md) — design diagrams.
+- [`docs/engineering/decisions/`](docs/engineering/decisions/) — ADRs 0001–0006.
+- [`docs/Sprints/`](docs/Sprints/) — sprint scope, contracts, tests, velocity.
+- [`docs/PM1.md`](docs/PM1.md) — PM1 checklist with real artifacts.
+- [`dev/README.md`](dev/README.md) — 30-minute credential setup (untracked).
+
+## Security
+
+Secrets live only in `apps/api` runtime env. The web app never reads a service
+key. GitHub provider tokens are AES-256-GCM encrypted at rest. JWTs are verified
+by JWKS; roles come from `users.role`; ownership is re-checked in services.
+Uploads are private, size/type checked. The AI guide is prompt + output filter +
+eval, and refuses to write the implementation.
+
+## Product rules
+
+Roles: Developer, Maintainer, Admin. Runtime externals: GitHub, Supabase,
+Email, CV parser (in-process), LLM. Free plans only. `AGENTS.md` is the
+non-negotiable engineering contract.
+
+## License and ownership
+
+Course project, CSE454. See the original specification at the repository root
+(reference only).

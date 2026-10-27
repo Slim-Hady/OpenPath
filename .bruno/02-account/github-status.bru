@@ -1,0 +1,16 @@
+meta {
+  name: GitHub status
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/github/status
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{devToken}}
+  Content-Type: application/json
+}
