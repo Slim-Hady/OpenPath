@@ -64,6 +64,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @osh/api exec prisma generate
       - run: pnpm --filter @osh/api test -- --runInBand
 
   test-web:
@@ -127,6 +128,8 @@ jobs:
             dockerfile: apps/web/Dockerfile
           - name: api
             dockerfile: apps/api/Dockerfile
+          - name: worker
+            dockerfile: apps/worker/Dockerfile
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
