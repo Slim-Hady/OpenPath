@@ -27,7 +27,7 @@ sequenceDiagram
     alt status changed
       K->>DB: ProgressEvent with dedupeKey
       K->>N: PR_ACTIVITY notification (deduped)
-      alt merged
+      alt PR_OPEN or merged
         K->>Q: gamification.evaluate
       end
     end

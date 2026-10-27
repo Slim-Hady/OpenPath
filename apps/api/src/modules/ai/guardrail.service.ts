@@ -61,9 +61,19 @@ export class GuardrailService {
   }
 
   private isCodeSpan(value: string): boolean {
-    return /(=>|;\s*$|\breturn\b|\bconst\b|\blet\b|\bvar\b|\bfunction\b|\bclass\b|\bif\s*\(|\bfor\s*\(|\bimport\s+|\bexport\s+|[{}]\s*;)/.test(
-      value.trim(),
-    );
+    const text = value.trim();
+    // Paths and commands are useful guidance, not implementation code.
+    if (/^[\w./-]+\.(ts|tsx|js|jsx|py|go|rs|java|rb|php|md|json|ya?ml|css|html)$/.test(text)) {
+      return false;
+    }
+    if (/^(npm|pnpm|yarn|pip|poetry|cargo|go|make|docker)\b/.test(text)) return false;
+    if (/\b(SELECT|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP)\b/i.test(text)) return true;
+    if (/\b[A-Za-z_$][\w$]*\s*\(/.test(text)) return true;
+    if (/\b[A-Za-z_$][\w$]*\.[A-Za-z_$][\w$]*\s*\(/.test(text)) return true;
+    if (/(=>|;\s*$|\breturn\b|\bconst\b|\blet\b|\bvar\b|\bfunction\b|\bclass\b|\bif\s*\(|\bfor\s*\(|\bimport\s+|\bexport\s+|[{}]\s*;|=)/.test(text)) {
+      return true;
+    }
+    return false;
   }
 
   private isCodeLine(line: string): boolean {

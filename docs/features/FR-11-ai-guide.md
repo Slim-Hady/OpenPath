@@ -50,7 +50,7 @@ Refuse by intent before the provider call, then filter the output again. Rejecte
 
 ## 11. Tests and evidence
 
-`pnpm --filter @osh/api test` 13/13 guardrail cases; `pnpm guardrail:eval` 10/10 refusal/strip/pass; live refusal path stored and rendered.
+`pnpm --filter @osh/api test` 15/15 guardrail cases; `pnpm guardrail:eval` 15/15 refusal/strip/pass; live refusal path stored and rendered.
 
 Evidence lives under `dev/evidence/slice-4/`. The PR body records the
 exact commands and result.

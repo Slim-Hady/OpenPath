@@ -226,7 +226,7 @@ export class SyncService {
     for (const user of users) {
       await this.queue.add(
         QUEUES.notificationDigest,
-        { userId: user.userId },
+        { userId: user.userId, frequency },
         `digest:${frequency}:${user.userId}:${new Date().toISOString().slice(0, 10)}`,
       );
     }
@@ -242,6 +242,7 @@ export class SyncService {
       where: { userId: notification.userId },
     });
     if (!preference?.channels.includes('EMAIL')) return;
+    if (preference.frequency !== 'INSTANT') return;
     const sent = await this.email.send({
       to: notification.user.email,
       subject: notification.title,
@@ -255,11 +256,13 @@ export class SyncService {
     }
   }
 
-  async deliverDigest(userId: string): Promise<void> {
+  async deliverDigest(userId: string, expectedFrequency?: 'DAILY' | 'WEEKLY'): Promise<void> {
     const preference = await this.prisma.notificationPreference.findUnique({
       where: { userId },
     });
     if (!preference || preference.frequency === 'INSTANT') return;
+    if (!preference.channels.includes('EMAIL')) return;
+    if (expectedFrequency && preference.frequency !== expectedFrequency) return;
     const unsent = await this.prisma.notification.findMany({
       where: { userId, emailedAt: null, createdAt: { gte: new Date(Date.now() - 7 * 86_400_000) } },
       orderBy: { createdAt: 'desc' },

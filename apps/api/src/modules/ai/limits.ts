@@ -6,7 +6,3 @@ export function isAiLimitError(error: unknown): error is AppError {
     (error.code === 'AI_TOKEN_LIMIT' || error.code === 'AI_USAGE_LIMIT')
   );
 }
-
-export function isAiFallbackError(error: unknown): boolean {
-  return error instanceof AppError && error.code.startsWith('AI_') && !isAiLimitError(error);
-}

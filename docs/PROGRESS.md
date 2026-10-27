@@ -109,7 +109,7 @@ The order to build in. Tick a slice only when its "done when" is true. Keep this
 - Architecture and diagrams: `docs/engineering/diagrams/`
 - API contracts: `docs/API.md` and each `docs/Sprints/sprintN/01-api.md`
 - Guardrail eval: `pnpm guardrail:eval` → 10/10
-- Integration: `pnpm --filter @osh/api test:integration -- --runInBand` → 9/9
+- Integration: `pnpm --filter @osh/api test:integration -- --runInBand` → 13/13
 - Live smoke: `pnpm smoke` and the Bruno smoke collection (8/8)
 - Compose: `docker compose ps` shows api, web, worker healthy; postgres/redis healthy
 - PR/review: see `dev/STATE.md` and `dev/build-log.md`

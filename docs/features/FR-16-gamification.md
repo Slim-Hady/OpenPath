@@ -18,7 +18,7 @@ FR-16.1–16.9. Acceptance: each badge awarded once; locked requirements visible
 ## 4. How it works
 
 1. Seeded rules map badge codes to a metric and target.
-2. `gamification.evaluate` runs after a merge or manually from the job.
+2. `gamification.evaluate` runs after PR_OPEN or a merge, or manually from the job.
 3. Missing badges are inserted once; a notification is created with `badge:<user>:<code>`.
 4. Streaks are calculated from distinct progress-event days.
 5. Visibility toggles update `UserBadge.publicVisible`; the public profile reads only visible rows.

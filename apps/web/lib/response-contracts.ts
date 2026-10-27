@@ -63,6 +63,8 @@ export const GithubStatusSchema = z.object({
 export function schemaFor(path: string, method: string): ZodTypeAny | null {
   const clean = path.split('?')[0] ?? path;
   const verb = method.toUpperCase();
+  if (clean === '/me' && verb === 'DELETE') return DeletionEnvelopeSchema;
+  if (clean === '/github' && verb === 'DELETE') return OkSchema;
   const exact: Record<string, ZodTypeAny> = {
     '/me': MeSchema,
     '/me/history': AccountHistorySchema,
@@ -99,7 +101,6 @@ export function schemaFor(path: string, method: string): ZodTypeAny | null {
     '/admin/ai-usage': AiUsageSummarySchema,
   };
   if (exact[clean]) return exact[clean] ?? null;
-  if (clean === '/me' && verb === 'DELETE') return DeletionEnvelopeSchema;
   if (/^\/cv\/[^/]+\/retry$/.test(clean)) return CvUploadEnvelopeSchema;
   if (/^\/discovery\/issues\/[^/]+$/.test(clean)) return IssueDetailsSchema;
   if (/^\/onboarding\/repository\/[^/]+$/.test(clean)) return RepositoryOnboardingSchema;

@@ -103,7 +103,7 @@ export class AuthService {
 }
 
 export function canLinkByEmail(claims: SupabaseClaims): boolean {
-  return claims.email_verified === true;
+  return claims.user_metadata?.email_verified === true || claims.email_verified === true;
 }
 
 function firstString(...values: unknown[]): string | undefined {

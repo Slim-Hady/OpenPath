@@ -1,4 +1,5 @@
 import type { ZodType } from 'zod';
+import { ApiErrorSchema } from '@osh/contracts';
 
 export class ServerApiError extends Error {
   constructor(
@@ -19,11 +20,11 @@ export async function publicApi<T>(path: string, schema?: ZodType<T>): Promise<T
   const text = await response.text();
   const payload: unknown = text ? JSON.parse(text) : null;
   if (!response.ok) {
-    const message =
-      payload && typeof payload === 'object' && 'message' in payload
-        ? String((payload as { message: unknown }).message)
-        : `Request failed (${response.status})`;
-    throw new ServerApiError(response.status, message);
+    const parsed = ApiErrorSchema.safeParse(payload);
+    throw new ServerApiError(
+      response.status,
+      parsed.success ? parsed.data.message : `Request failed (${response.status})`,
+    );
   }
   return schema ? schema.parse(payload) : (payload as T);
 }

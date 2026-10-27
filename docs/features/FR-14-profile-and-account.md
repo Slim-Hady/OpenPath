@@ -25,7 +25,7 @@ FR-14.1–14.11. Acceptance: unique username; password updated; history is owner
 
 ## 5. Sequence diagram
 
-Canonical sequence: [account history and deletion](../engineering/diagrams/sequences/01-auth.md).
+Canonical sequence: [account history and deletion](../engineering/diagrams/sequences/13-account-history.md).
 The diagram is the source of truth for this flow and maps to the files above.
 
 ## 6. Data

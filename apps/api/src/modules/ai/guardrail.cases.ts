@@ -76,6 +76,24 @@ export const GUARDRAIL_CASES: GuardrailCase[] = [
     expected: 'strip',
   },
   {
+    name: 'member call in inline code',
+    request: 'What should I read first?',
+    modelOutput: 'Call `fetchUser()` before render, then read the test that covers it.',
+    expected: 'strip',
+  },
+  {
+    name: 'SQL in inline code',
+    request: 'How should I investigate the data issue?',
+    modelOutput: 'Run `SELECT * FROM users` to see the rows, then compare the query in the repository.',
+    expected: 'strip',
+  },
+  {
+    name: 'array method in inline code',
+    request: 'How do I think about the filter?',
+    modelOutput: 'The handler should use `items.filter(Boolean)` after it becomes a list.',
+    expected: 'strip',
+  },
+  {
     name: 'safe investigation answer',
     request: 'How should I investigate this issue?',
     modelOutput:

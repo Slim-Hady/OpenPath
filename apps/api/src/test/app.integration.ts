@@ -5,6 +5,7 @@ import request from 'supertest';
 import { AccountHistorySchema, AdminMetricsSchema, MeSchema, ProfileSchema, SelectionSchema } from '@osh/contracts';
 import { AppModule } from '../app.module';
 import { PrismaService } from '../prisma/prisma.service';
+import { QueueService, QUEUES } from '../infra/queue.service';
 import { NotificationsService } from '../modules/notifications/notifications.service';
 import { AchievementsService } from '../modules/achievements/achievements.service';
 
@@ -18,9 +19,16 @@ describe('API integration (local Postgres)', () => {
   let otherUserId: string;
   let devUserId: string;
   let otherToken: string;
+  const queueMock = {
+    add: jest.fn().mockResolvedValue(true),
+    addOrFail: jest.fn().mockResolvedValue(undefined),
+  };
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideProvider(QueueService)
+      .useValue(queueMock)
+      .compile();
     app = moduleRef.createNestApplication<NestExpressApplication>();
     await app.init();
     prisma = app.get(PrismaService);
@@ -209,6 +217,7 @@ describe('API integration (local Postgres)', () => {
     const selection = await prisma.selection.findFirstOrThrow({
       where: { userId: devUserId, issueId: 'test/repo#10' },
     });
+    queueMock.add.mockClear();
     const updated = await request(app.getHttpServer())
       .patch(`/progress/${selection.id}`)
       .set('Authorization', `Bearer ${devToken}`)
@@ -217,6 +226,11 @@ describe('API integration (local Postgres)', () => {
         prUrl: 'https://github.com/test/repo/pull/10',
       });
     expect(updated.status).toBe(200);
+    expect(queueMock.add).toHaveBeenCalledWith(
+      QUEUES.gamification,
+      { userId: devUserId },
+      `badge:${devUserId}:${selection.id}`,
+    );
     await prisma.badge.upsert({
       where: { code: 'FIRST_PR' },
       create: {

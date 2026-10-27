@@ -47,6 +47,12 @@ describe('response contracts', () => {
     ).toThrow(/did not match/);
   });
 
+  it('accepts the deletion envelope for DELETE /me', () => {
+    expect(
+      parseContract('/me', 'DELETE', { requested: true, requestedAt: new Date().toISOString() }),
+    ).toMatchObject({ requested: true });
+  });
+
   it('leaves unknown routes untouched', () => {
     expect(parseContract('/unknown', 'GET', { any: true })).toEqual({ any: true });
   });

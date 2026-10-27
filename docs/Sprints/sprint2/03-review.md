@@ -4,8 +4,8 @@
 
 ## Verification note (2026-10-27)
 
-Automated gates passed: lint, typecheck, contracts 6, API unit 22, web unit 8,
-integration 13, guardrail eval 12/12, compose health, smoke 8/8 and Bruno 8/8.
+Automated gates passed: lint, typecheck, contracts 6, API unit 25, web unit 9,
+integration 13, guardrail eval 15/15, compose health, smoke 8/8 and Bruno 8/8.
 The golden path was exercised in a real browser. Items that need an external
 provider or a human hand are intentionally left unchecked and named in the
 note below; they are not silently marked done.
@@ -36,11 +36,11 @@ Tick each story only after its acceptance criteria have been demonstrated.
 
 ## 2. Quality gates
 
-- [x] API contract in [`01-api.md`](01-api.md) is complete and every manual API check passed.
+- [ ] API contract in [`01-api.md`](01-api.md) is complete and every manual API check passed. (Contract complete; manual checks deferred to the human.)
 - [x] Unit tests pass.
 - [x] Integration tests pass.
-- [x] Manual tests in [`02-testing.md`](02-testing.md) pass.
-- [x] Non-functional checks pass.
+- [ ] Manual tests in [`02-testing.md`](02-testing.md) pass. (Deferred to the human; see the verification note.)
+- [ ] Non-functional checks pass. (Deferred; local demo does not prove production NFRs.)
 - [x] Definition of Done in [`00-sprint.md`](00-sprint.md) is met.
 - [x] No blocker, critical or high bug remains.
 

@@ -15,7 +15,8 @@ Global conventions (base URL, auth header, error shape, pagination) live in [`..
 | A4.3 | GET/PATCH/POST | `/notifications`, `/:id/read`, `/read-all` | Developer | List/mark read | — | NotificationList/Dto | 403/404 |
 | A4.4 | GET | `/achievements` | Developer | Badges/streak/visibility | — | Achievements | 401 |
 | A4.5 | PATCH | `/achievements/visibility` | Developer | Badge public flag | `{badgeCode, publicVisible}` | `{ok:true}` | 400, 409 |
-| A4.6 | GET | `/me/history`, `/me/stats` | Developer | Issues/chats/counts | — | AccountHistory | 403/404 |
+| A4.6 | GET | `/me/history` | Developer | Issues/chats/counts | — | AccountHistory | 403/404 |
+| A4.6b | GET | `/me/stats` | Developer | Counts only | — | AccountStats | 403/404 |
 | A4.7 | DELETE | `/me` | Developer | Delete account + data | — | `{requested:true}` | 401 |
 | A4.8 | GET | `/admin/metrics` | Admin | Users/suggestions/status | start?, end? | AdminMetrics | 403 |
 | A4.9 | GET | `/admin/ai-usage` | Admin | Tokens by feature/period | start, end, feature | AiUsageSummary | 400, 403 |
