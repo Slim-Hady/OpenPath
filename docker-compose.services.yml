@@ -1,0 +1,156 @@
+name: osh-services
+
+# PM1 per-service stack: one container + one database per service.
+# Run: docker compose -f docker-compose.services.yml up --build
+# The product app itself is still the root docker-compose.yml (web + api + worker).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: osh
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-osh_services_local}
+      POSTGRES_DB: osh
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U osh -d osh"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  account:
+    build:
+      context: .
+      dockerfile: services/account/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://osh:${POSTGRES_PASSWORD:-osh_services_local}@postgres:5432/account_db
+      PORT: 3000
+    ports:
+      - "4101:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  developer-profile:
+    build:
+      context: .
+      dockerfile: services/developer-profile/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://osh:${POSTGRES_PASSWORD:-osh_services_local}@postgres:5432/developer_profile_db
+      PORT: 3000
+    ports:
+      - "4102:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  issue-search:
+    build:
+      context: .
+      dockerfile: services/issue-search/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://osh:${POSTGRES_PASSWORD:-osh_services_local}@postgres:5432/issue_search_db
+      PORT: 3000
+    ports:
+      - "4103:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  contribution-tracking:
+    build:
+      context: .
+      dockerfile: services/contribution-tracking/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://osh:${POSTGRES_PASSWORD:-osh_services_local}@postgres:5432/contribution_tracking_db
+      PORT: 3000
+    ports:
+      - "4104:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  onboarding-learning:
+    build:
+      context: .
+      dockerfile: services/onboarding-learning/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://osh:${POSTGRES_PASSWORD:-osh_services_local}@postgres:5432/onboarding_learning_db
+      PORT: 3000
+    ports:
+      - "4105:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  ai-guide:
+    build:
+      context: .
+      dockerfile: services/ai-guide/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://osh:${POSTGRES_PASSWORD:-osh_services_local}@postgres:5432/ai_guide_db
+      PORT: 3000
+    ports:
+      - "4106:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  community-recognition:
+    build:
+      context: .
+      dockerfile: services/community-recognition/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://osh:${POSTGRES_PASSWORD:-osh_services_local}@postgres:5432/community_recognition_db
+      PORT: 3000
+    ports:
+      - "4107:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  mentor-network:
+    build:
+      context: .
+      dockerfile: services/mentor-network/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://osh:${POSTGRES_PASSWORD:-osh_services_local}@postgres:5432/mentor_network_db
+      PORT: 3000
+    ports:
+      - "4108:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  notification:
+    build:
+      context: .
+      dockerfile: services/notification/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://osh:${POSTGRES_PASSWORD:-osh_services_local}@postgres:5432/notification_db
+      PORT: 3000
+    ports:
+      - "4109:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  admin:
+    build:
+      context: .
+      dockerfile: services/admin/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://osh:${POSTGRES_PASSWORD:-osh_services_local}@postgres:5432/admin_db
+      PORT: 3000
+    ports:
+      - "4110:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:

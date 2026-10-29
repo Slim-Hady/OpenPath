@@ -4,8 +4,9 @@
 **Sources:** `our_design/` component diagrams, `docs/Sprints/`, `docs/engineering/diagrams/04-erd.md`, `apps/api/prisma/schema.prisma`.
 **Scope:** all **10 services** of the design. **Sprint 1** uses **4** of them → **4 Dockerfiles + 4 databases** (section 7).
 
-> This document is the design. No code files are added to `docs/`.
-> The shipped repository builds **3 images** (`web`, `api`, `worker`) against **1 Postgres**; the 10 services below are the PM1 per-service view of the same modules. The mapping is in section 8, so every box still traces to real code and real tables.
+> **Implemented.** The Dockerfiles, database init scripts and compose file are real files in the repository:
+> `services/<name>/Dockerfile`, `db/init/*.sql` and `docker-compose.services.yml`.
+> The product app itself still runs as the root `docker-compose.yml` (web + api + worker); the 10 services below are the PM1 per-service deployment layer, one container and one database each. The mapping is in section 8, so every box still traces to real code and real tables.
 
 ---
 
@@ -38,11 +39,25 @@
 | 7 | Community Recognition | `ICommunity` | 4–5 | `services/community-recognition/Dockerfile` | `community_recognition_db` | 4 |
 | 8 | Mentor Network | `IMentorNetwork` | 5 | `services/mentor-network/Dockerfile` | `mentor_network_db` | 4 |
 | 9 | Notification | `INotification` | **1** (FR-13.3) + 4 | `services/notification/Dockerfile` | `notification_db` | 2 |
-| 10 | Admin | `IAdminDashboard`, `IAISettings` | **1** (FR-20.1) + 4 | `services/admin/Dockerfile` | `admin_db` | 7 |
+| 10 | Admin | `IAdminDashboard`, `IAISettings` | **1** (FR-20.1) + 4 | `services/admin/Dockerfile` | `admin_db` | 6 |
 
-**Total:** 10 Dockerfiles, 10 databases, 38 tables.
+**Total:** 10 Dockerfiles, 10 databases, 37 tables.
 
-The path column is the **target repository layout**; the content of every Dockerfile is in section 5. Each database is owned by exactly one service. No service connects to another service's database. Cross-service values are IDs only (`userId`, `issueId`, …), listed per service in section 5.
+The paths are real files in this repository, and the content of every Dockerfile is also shown in section 5. Each database is owned by exactly one service. No service connects to another service's database. Cross-service values are IDs only (`userId`, `issueId`, …), listed per service in section 5.
+
+**Repository files added:**
+
+```text
+services/<name>/Dockerfile        multi-stage image, one per service
+services/<name>/package.json      workspace package @osh/service-<name>
+services/<name>/tsconfig.json
+services/<name>/src/main.ts       starts the service
+services/<name>/src/service.config.ts   name, sprint, DB, provides/requires/owns
+packages/service-kit/             shared runtime (health, meta, db/tables)
+db/init/00-databases.sql          creates the 10 databases
+db/init/10-<name>.sql             schema for that service's database
+docker-compose.services.yml       10 services + Postgres
+```
 
 ---
 
@@ -51,11 +66,11 @@ The path column is the **target repository layout**; the content of every Docker
 | Rule | How the document applies it |
 |---|---|
 | One container per service | 10 Dockerfiles, one per component of the component diagrams |
-| Multi-stage Dockerfile | `prod-deps` → `build` → `runtime` in every Dockerfile |
+| Multi-stage Dockerfile | `base` → `deps` → `build` → `runtime` in every Dockerfile |
 | One database per service | 10 databases on one Postgres server; one owner each |
 | No service reads another database | no cross-database foreign key; cross-service IDs are logical references |
 | No secret in the image | only `DATABASE_URL` at runtime; no `.env` copied; no key in `ENV` |
-| Small runtime image | `node:22-alpine`, production dependencies only, non-root `osh` user |
+| Clean runtime stage | `node:22-alpine`, no source or compiler, non-root `osh` user |
 | Health check | `GET /health` checks the process **and** its own database |
 | One command | one compose file with `postgres` + the 10 services |
 | Traceability | every service maps to a real module and real tables (section 8) |
@@ -66,44 +81,39 @@ The path column is the **target repository layout**; the content of every Docker
 
 ## 3. Docker: the multi-stage shape
 
-Every Dockerfile has the same three stages. The service name is the only thing that changes.
+Every Dockerfile has the same four stages. The service name and paths are the only things that change.
 
 ```text
 ┌──────────────────────────── Build machine ────────────────────────────┐
 │                                                                       │
-│  stage 1: prod-deps              stage 2: build                       │
-│  node:22-alpine                  node:22-alpine                       │
-│  npm ci --omit=dev               npm ci (dev deps: TypeScript)        │
-│  → node_modules (production)     copy src/ + tsconfig                 │
-│                                  npm run build → dist/                │
+│  stage 1: base                stage 2: deps                           │
+│  node:22-alpine               corepack enable                         │
+│  corepack enable              pnpm install (workspace, filtered)      │
+│                               → node_modules for this service         │
 │                                                                       │
-└──────────────────────────────────┬────────────────────────────────────┘
-                                   │ copy dist + production node_modules
-                                   ▼
-                    stage 3: runtime (node:22-alpine)
-                    non-root user `osh`
-                    PORT=3000, SERVICE_NAME=<service>
-                    HEALTHCHECK /health
-                    CMD ["node", "dist/main.js"]
+│  stage 3: build               stage 4: runtime                        │
+│  copy service-kit + service   node:22-alpine, non-root `osh`          │
+│  pnpm build → dist/           node_modules + dist                     │
+│                               HEALTHCHECK /health                     │
+└───────────────────────────────────────────────────────────────────────┘
 ```
 
-**Why three stages**
+**Why four stages**
 
-1. **`prod-deps`** installs only runtime packages, so the final image has no compiler, no test runner and no dev dependency.
-2. **`build`** has the full toolchain and compiles TypeScript. It is thrown away, so the toolchain never reaches production.
-3. **`runtime`** copies only `dist/` and the production `node_modules`. That is the image that is pushed to GHCR.
+1. **`base`** enables Corepack once, so every later stage uses the pinned pnpm version.
+2. **`deps`** installs only this service and the shared kit (`--filter`), so the image does not need the web app or the API. The lockfile is copied first, so this layer is cached until dependencies change.
+3. **`build`** copies the kit and the service, then compiles both with TypeScript. The source and the compiler stay in this stage.
+4. **`runtime`** copies `node_modules` and `dist` into a clean Alpine image, creates the `osh` user and starts the service.
 
 **Common conventions**
 
 - `WORKDIR /app` in every stage.
-- `npm ci` (uses the lockfile) instead of `npm install`.
-- `COPY` the manifest first, so the dependency layer is cached when only source changes.
-- No `COPY . .`; copy only the service folder.
-- `USER osh` after the files are copied; the app never runs as root.
+- `pnpm install --frozen-lockfile` against `pnpm-lock.yaml`.
+- `COPY` the manifests first, so the dependency layer is cached when only source changes.
+- No `COPY . .`; copy only the kit and the service.
+- `USER osh` before the process starts; the service never runs as root.
 - `HEALTHCHECK` uses `wget` (present in Alpine) and the same `/health` that compose and the load balancer use.
-- Build context is the **repository root**, because the Dockerfile copies `services/<name>/…`. Build command: `docker build -f services/<name>/Dockerfile .`
-
-**A note on the package manager:** the target split gives every service its own `package-lock.json`, so the blocks below use `npm ci`. The current monorepo uses **pnpm** (`pnpm-lock.yaml`). When a module is extracted into `services/<name>`, keep the same three stages and only change the install command to `corepack enable && pnpm install --frozen-lockfile`; the rest of the Dockerfile is unchanged.
+- Build context is the **repository root**, because the Dockerfile copies `packages/service-kit/` and `services/<name>/`. Build command: `docker build -f services/<name>/Dockerfile .`
 
 **Shared template** (the per-service blocks in section 5 are this template with the paths filled in):
 
@@ -112,31 +122,35 @@ Every Dockerfile has the same three stages. The service name is the only thing t
 # Build context: repository root
 #   docker build -f services/<service>/Dockerfile -t osh/<service>:pm1 .
 
-FROM node:22-alpine AS prod-deps
+FROM node:22-alpine AS base
+RUN corepack enable
 WORKDIR /app
-COPY services/<service>/package.json services/<service>/package-lock.json ./
-RUN npm ci --omit=dev --no-audit --no-fund
 
-FROM node:22-alpine AS build
-WORKDIR /app
-COPY services/<service>/package.json services/<service>/package-lock.json ./
-RUN npm ci --no-audit --no-fund
-COPY services/<service>/tsconfig.json ./
-COPY services/<service>/src ./src
-RUN npm run build
+FROM base AS deps
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY packages/service-kit/package.json packages/service-kit/
+COPY services/<service>/package.json services/<service>/
+RUN pnpm install --frozen-lockfile --ignore-scripts \
+      --filter @osh/service-<service>... --filter @osh/service-kit...
+
+FROM deps AS build
+COPY packages/service-kit packages/service-kit
+COPY services/<service> services/<service>
+RUN pnpm --filter @osh/service-kit build \
+ && pnpm --filter @osh/service-<service> build
 
 FROM node:22-alpine AS runtime
 ENV NODE_ENV=production PORT=3000 SERVICE_NAME=<service>
 WORKDIR /app
 RUN addgroup -S osh && adduser -S osh -G osh
-COPY --from=prod-deps /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
-COPY services/<service>/package.json ./
+COPY --from=build --chown=osh:osh /app/node_modules ./node_modules
+COPY --from=build --chown=osh:osh /app/packages/service-kit ./packages/service-kit
+COPY --from=build --chown=osh:osh /app/services/<service> ./services/<service>
 USER osh
 EXPOSE 3000
 HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 \
   CMD wget -qO- "http://127.0.0.1:${PORT}/health" >/dev/null || exit 1
-CMD ["node", "dist/main.js"]
+CMD ["node", "services/<service>/dist/main.js"]
 ```
 
 ---
@@ -150,7 +164,7 @@ CMD ["node", "dist/main.js"]
 ### 4.1 Create the databases
 
 ```sql
--- docker-entrypoint-initdb.d/00-databases.sql
+-- db/init/00-databases.sql (mounted into the Postgres init folder)
 CREATE DATABASE account_db;
 CREATE DATABASE developer_profile_db;
 CREATE DATABASE issue_search_db;
@@ -178,9 +192,9 @@ Each service then applies **its own** migration folder to **its own** database. 
 | `community_recognition_db` | Community Recognition | `Badge`, `UserBadge`, `Streak`, `PublicProfile` |
 | `mentor_network_db` | Mentor Network | `OutreachRequest`, `OutreachConversation`, `OutreachMessage`, `BlockedUser` |
 | `notification_db` | Notification | `Notification`, `NotificationPreference` |
-| `admin_db` | Admin | `AiSetting`, `AiSettingAudit`, `AiUsage`, `AiUsageDaily`, `AdminSnapshot`, `JobRun`, `SyncState` |
+| `admin_db` | Admin | `AiSetting`, `AiUsage`, `AiUsageDaily`, `AdminSnapshot`, `JobRun`, `SyncState` |
 
-**Coverage check:** 38 tables, each assigned once. The four tables with a `userId` in another service (`Recommendation`, `Selection`, `Notification`, …) keep the column but not a foreign key. That is the price of database-per-service, and it is documented per service.
+**Coverage check:** 37 tables, each assigned once. The four tables with a `userId` in another service (`Recommendation`, `Selection`, `Notification`, …) keep the column but not a foreign key. That is the price of database-per-service, and it is documented per service.
 
 ### 4.3 Cross-service references
 
@@ -197,14 +211,14 @@ These columns hold an ID from another service. They are indexed but **not** enfo
 | Community Recognition | `UserBadge.userId`, `Streak.userId`, `PublicProfile.userId` | `account_db.User.id` |
 | Mentor Network | `OutreachRequest.senderId/recipientId`, `OutreachMessage.senderId`, `BlockedUser.blockerId/blockedId` | `account_db.User.id` |
 | Notification | `Notification.userId`, `NotificationPreference.userId` | `account_db.User.id` |
-| Admin | `AiSetting.updatedById`, `AiSettingAudit.adminId`, `AiUsage.userId` | `account_db.User.id` |
+| Admin | `AiSetting.updatedById`, `AiUsage.userId` | `account_db.User.id` |
 | All | `userId` on a read path | resolved through `IAccount`, never a SQL join |
 
 **Rule for the application:** the owner service returns the row; the caller keeps the ID. No `JOIN` across databases.
 
 ### 4.4 Migration policy
 
-- One migration history per database, in the service repository: `services/<name>/prisma/migrations` (or the service's own SQL folder).
+- The initial schema of each database is `db/init/10-<name>.sql`. When a service changes, it adds its own migration folder (or a numbered SQL file) and never edits a script that has already run in a shared environment.
 - `migrate deploy` runs as a release step **before** the new container starts.
 - A migration never touches another database.
 - `code` is the source of truth today (`apps/api/prisma/schema.prisma`); the split above follows the module ownership table in `docs/engineering/diagrams/04-erd.md`.
@@ -232,34 +246,40 @@ Each section has the same shape:
 
 ```dockerfile
 # services/account/Dockerfile
-# Build context: repository root
+
+# Account — PM1 per-service container.
+# Build context is the repository root:
 #   docker build -f services/account/Dockerfile -t osh/account:pm1 .
 
-FROM node:22-alpine AS prod-deps
+FROM node:22-alpine AS base
+RUN corepack enable
 WORKDIR /app
-COPY services/account/package.json services/account/package-lock.json ./
-RUN npm ci --omit=dev --no-audit --no-fund
 
-FROM node:22-alpine AS build
-WORKDIR /app
-COPY services/account/package.json services/account/package-lock.json ./
-RUN npm ci --no-audit --no-fund
-COPY services/account/tsconfig.json ./
-COPY services/account/src ./src
-RUN npm run build
+FROM base AS deps
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY packages/service-kit/package.json packages/service-kit/
+COPY services/account/package.json services/account/
+RUN pnpm install --frozen-lockfile --ignore-scripts \
+      --filter @osh/service-account... --filter @osh/service-kit...
+
+FROM deps AS build
+COPY packages/service-kit packages/service-kit
+COPY services/account services/account
+RUN pnpm --filter @osh/service-kit build \
+ && pnpm --filter @osh/service-account build
 
 FROM node:22-alpine AS runtime
 ENV NODE_ENV=production PORT=3000 SERVICE_NAME=account
 WORKDIR /app
 RUN addgroup -S osh && adduser -S osh -G osh
-COPY --from=prod-deps /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
-COPY services/account/package.json ./
+COPY --from=build --chown=osh:osh /app/node_modules ./node_modules
+COPY --from=build --chown=osh:osh /app/packages/service-kit ./packages/service-kit
+COPY --from=build --chown=osh:osh /app/services/account ./services/account
 USER osh
 EXPOSE 3000
 HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 \
   CMD wget -qO- "http://127.0.0.1:${PORT}/health" >/dev/null || exit 1
-CMD ["node", "dist/main.js"]
+CMD ["node", "services/account/dist/main.js"]
 ```
 
 **Database:** `account_db`
@@ -311,40 +331,47 @@ erDiagram
 
 ```dockerfile
 # services/developer-profile/Dockerfile
-# Build context: repository root
 
-FROM node:22-alpine AS prod-deps
-WORKDIR /app
-COPY services/developer-profile/package.json services/developer-profile/package-lock.json ./
-RUN npm ci --omit=dev --no-audit --no-fund
+# Developer Profile — PM1 per-service container.
+# Build context is the repository root:
+#   docker build -f services/developer-profile/Dockerfile -t osh/developer-profile:pm1 .
 
-FROM node:22-alpine AS build
+FROM node:22-alpine AS base
+RUN corepack enable
 WORKDIR /app
-COPY services/developer-profile/package.json services/developer-profile/package-lock.json ./
-RUN npm ci --no-audit --no-fund
-COPY services/developer-profile/tsconfig.json ./
-COPY services/developer-profile/src ./src
-RUN npm run build
+
+FROM base AS deps
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY packages/service-kit/package.json packages/service-kit/
+COPY services/developer-profile/package.json services/developer-profile/
+RUN pnpm install --frozen-lockfile --ignore-scripts \
+      --filter @osh/service-developer-profile... --filter @osh/service-kit...
+
+FROM deps AS build
+COPY packages/service-kit packages/service-kit
+COPY services/developer-profile services/developer-profile
+RUN pnpm --filter @osh/service-kit build \
+ && pnpm --filter @osh/service-developer-profile build
 
 FROM node:22-alpine AS runtime
 ENV NODE_ENV=production PORT=3000 SERVICE_NAME=developer-profile
 WORKDIR /app
 RUN addgroup -S osh && adduser -S osh -G osh
-COPY --from=prod-deps /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
-COPY services/developer-profile/package.json ./
+COPY --from=build --chown=osh:osh /app/node_modules ./node_modules
+COPY --from=build --chown=osh:osh /app/packages/service-kit ./packages/service-kit
+COPY --from=build --chown=osh:osh /app/services/developer-profile ./services/developer-profile
 USER osh
 EXPOSE 3000
 HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 \
   CMD wget -qO- "http://127.0.0.1:${PORT}/health" >/dev/null || exit 1
-CMD ["node", "dist/main.js"]
+CMD ["node", "services/developer-profile/dist/main.js"]
 ```
 
 **Database:** `developer_profile_db`
 
 | Table | Purpose |
 |---|---|
-| `DeveloperProfile` | description, interests, technologies, experience level |
+| `DeveloperProfile` | description, experience level |
 | `Skill` | shared skill catalogue |
 | `UserSkill` | user ↔ skill, with `source` = `manual` / `cv` / `github` |
 | `Language` | shared language catalogue |
@@ -357,8 +384,6 @@ erDiagram
     string id PK
     string userId UK
     string description
-    string interests
-    string[] technologies
     string experienceLevel
     datetime createdAt
     datetime updatedAt
@@ -414,33 +439,40 @@ erDiagram
 
 ```dockerfile
 # services/issue-search/Dockerfile
-# Build context: repository root
 
-FROM node:22-alpine AS prod-deps
-WORKDIR /app
-COPY services/issue-search/package.json services/issue-search/package-lock.json ./
-RUN npm ci --omit=dev --no-audit --no-fund
+# Issue Search — PM1 per-service container.
+# Build context is the repository root:
+#   docker build -f services/issue-search/Dockerfile -t osh/issue-search:pm1 .
 
-FROM node:22-alpine AS build
+FROM node:22-alpine AS base
+RUN corepack enable
 WORKDIR /app
-COPY services/issue-search/package.json services/issue-search/package-lock.json ./
-RUN npm ci --no-audit --no-fund
-COPY services/issue-search/tsconfig.json ./
-COPY services/issue-search/src ./src
-RUN npm run build
+
+FROM base AS deps
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY packages/service-kit/package.json packages/service-kit/
+COPY services/issue-search/package.json services/issue-search/
+RUN pnpm install --frozen-lockfile --ignore-scripts \
+      --filter @osh/service-issue-search... --filter @osh/service-kit...
+
+FROM deps AS build
+COPY packages/service-kit packages/service-kit
+COPY services/issue-search services/issue-search
+RUN pnpm --filter @osh/service-kit build \
+ && pnpm --filter @osh/service-issue-search build
 
 FROM node:22-alpine AS runtime
 ENV NODE_ENV=production PORT=3000 SERVICE_NAME=issue-search
 WORKDIR /app
 RUN addgroup -S osh && adduser -S osh -G osh
-COPY --from=prod-deps /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
-COPY services/issue-search/package.json ./
+COPY --from=build --chown=osh:osh /app/node_modules ./node_modules
+COPY --from=build --chown=osh:osh /app/packages/service-kit ./packages/service-kit
+COPY --from=build --chown=osh:osh /app/services/issue-search ./services/issue-search
 USER osh
 EXPOSE 3000
 HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 \
   CMD wget -qO- "http://127.0.0.1:${PORT}/health" >/dev/null || exit 1
-CMD ["node", "dist/main.js"]
+CMD ["node", "services/issue-search/dist/main.js"]
 ```
 
 **Database:** `issue_search_db`
@@ -512,33 +544,40 @@ erDiagram
 
 ```dockerfile
 # services/contribution-tracking/Dockerfile
-# Build context: repository root
 
-FROM node:22-alpine AS prod-deps
-WORKDIR /app
-COPY services/contribution-tracking/package.json services/contribution-tracking/package-lock.json ./
-RUN npm ci --omit=dev --no-audit --no-fund
+# Contribution Tracking — PM1 per-service container.
+# Build context is the repository root:
+#   docker build -f services/contribution-tracking/Dockerfile -t osh/contribution-tracking:pm1 .
 
-FROM node:22-alpine AS build
+FROM node:22-alpine AS base
+RUN corepack enable
 WORKDIR /app
-COPY services/contribution-tracking/package.json services/contribution-tracking/package-lock.json ./
-RUN npm ci --no-audit --no-fund
-COPY services/contribution-tracking/tsconfig.json ./
-COPY services/contribution-tracking/src ./src
-RUN npm run build
+
+FROM base AS deps
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY packages/service-kit/package.json packages/service-kit/
+COPY services/contribution-tracking/package.json services/contribution-tracking/
+RUN pnpm install --frozen-lockfile --ignore-scripts \
+      --filter @osh/service-contribution-tracking... --filter @osh/service-kit...
+
+FROM deps AS build
+COPY packages/service-kit packages/service-kit
+COPY services/contribution-tracking services/contribution-tracking
+RUN pnpm --filter @osh/service-kit build \
+ && pnpm --filter @osh/service-contribution-tracking build
 
 FROM node:22-alpine AS runtime
 ENV NODE_ENV=production PORT=3000 SERVICE_NAME=contribution-tracking
 WORKDIR /app
 RUN addgroup -S osh && adduser -S osh -G osh
-COPY --from=prod-deps /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
-COPY services/contribution-tracking/package.json ./
+COPY --from=build --chown=osh:osh /app/node_modules ./node_modules
+COPY --from=build --chown=osh:osh /app/packages/service-kit ./packages/service-kit
+COPY --from=build --chown=osh:osh /app/services/contribution-tracking ./services/contribution-tracking
 USER osh
 EXPOSE 3000
 HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 \
   CMD wget -qO- "http://127.0.0.1:${PORT}/health" >/dev/null || exit 1
-CMD ["node", "dist/main.js"]
+CMD ["node", "services/contribution-tracking/dist/main.js"]
 ```
 
 **Database:** `contribution_tracking_db`
@@ -615,33 +654,40 @@ erDiagram
 
 ```dockerfile
 # services/onboarding-learning/Dockerfile
-# Build context: repository root
 
-FROM node:22-alpine AS prod-deps
-WORKDIR /app
-COPY services/onboarding-learning/package.json services/onboarding-learning/package-lock.json ./
-RUN npm ci --omit=dev --no-audit --no-fund
+# Onboarding & Learning — PM1 per-service container.
+# Build context is the repository root:
+#   docker build -f services/onboarding-learning/Dockerfile -t osh/onboarding-learning:pm1 .
 
-FROM node:22-alpine AS build
+FROM node:22-alpine AS base
+RUN corepack enable
 WORKDIR /app
-COPY services/onboarding-learning/package.json services/onboarding-learning/package-lock.json ./
-RUN npm ci --no-audit --no-fund
-COPY services/onboarding-learning/tsconfig.json ./
-COPY services/onboarding-learning/src ./src
-RUN npm run build
+
+FROM base AS deps
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY packages/service-kit/package.json packages/service-kit/
+COPY services/onboarding-learning/package.json services/onboarding-learning/
+RUN pnpm install --frozen-lockfile --ignore-scripts \
+      --filter @osh/service-onboarding-learning... --filter @osh/service-kit...
+
+FROM deps AS build
+COPY packages/service-kit packages/service-kit
+COPY services/onboarding-learning services/onboarding-learning
+RUN pnpm --filter @osh/service-kit build \
+ && pnpm --filter @osh/service-onboarding-learning build
 
 FROM node:22-alpine AS runtime
 ENV NODE_ENV=production PORT=3000 SERVICE_NAME=onboarding-learning
 WORKDIR /app
 RUN addgroup -S osh && adduser -S osh -G osh
-COPY --from=prod-deps /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
-COPY services/onboarding-learning/package.json ./
+COPY --from=build --chown=osh:osh /app/node_modules ./node_modules
+COPY --from=build --chown=osh:osh /app/packages/service-kit ./packages/service-kit
+COPY --from=build --chown=osh:osh /app/services/onboarding-learning ./services/onboarding-learning
 USER osh
 EXPOSE 3000
 HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 \
   CMD wget -qO- "http://127.0.0.1:${PORT}/health" >/dev/null || exit 1
-CMD ["node", "dist/main.js"]
+CMD ["node", "services/onboarding-learning/dist/main.js"]
 ```
 
 **Database:** `onboarding_learning_db`
@@ -716,33 +762,40 @@ erDiagram
 
 ```dockerfile
 # services/ai-guide/Dockerfile
-# Build context: repository root
 
-FROM node:22-alpine AS prod-deps
-WORKDIR /app
-COPY services/ai-guide/package.json services/ai-guide/package-lock.json ./
-RUN npm ci --omit=dev --no-audit --no-fund
+# AI Guide — PM1 per-service container.
+# Build context is the repository root:
+#   docker build -f services/ai-guide/Dockerfile -t osh/ai-guide:pm1 .
 
-FROM node:22-alpine AS build
+FROM node:22-alpine AS base
+RUN corepack enable
 WORKDIR /app
-COPY services/ai-guide/package.json services/ai-guide/package-lock.json ./
-RUN npm ci --no-audit --no-fund
-COPY services/ai-guide/tsconfig.json ./
-COPY services/ai-guide/src ./src
-RUN npm run build
+
+FROM base AS deps
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY packages/service-kit/package.json packages/service-kit/
+COPY services/ai-guide/package.json services/ai-guide/
+RUN pnpm install --frozen-lockfile --ignore-scripts \
+      --filter @osh/service-ai-guide... --filter @osh/service-kit...
+
+FROM deps AS build
+COPY packages/service-kit packages/service-kit
+COPY services/ai-guide services/ai-guide
+RUN pnpm --filter @osh/service-kit build \
+ && pnpm --filter @osh/service-ai-guide build
 
 FROM node:22-alpine AS runtime
 ENV NODE_ENV=production PORT=3000 SERVICE_NAME=ai-guide
 WORKDIR /app
 RUN addgroup -S osh && adduser -S osh -G osh
-COPY --from=prod-deps /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
-COPY services/ai-guide/package.json ./
+COPY --from=build --chown=osh:osh /app/node_modules ./node_modules
+COPY --from=build --chown=osh:osh /app/packages/service-kit ./packages/service-kit
+COPY --from=build --chown=osh:osh /app/services/ai-guide ./services/ai-guide
 USER osh
 EXPOSE 3000
 HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 \
   CMD wget -qO- "http://127.0.0.1:${PORT}/health" >/dev/null || exit 1
-CMD ["node", "dist/main.js"]
+CMD ["node", "services/ai-guide/dist/main.js"]
 ```
 
 **Database:** `ai_guide_db`
@@ -788,33 +841,40 @@ erDiagram
 
 ```dockerfile
 # services/community-recognition/Dockerfile
-# Build context: repository root
 
-FROM node:22-alpine AS prod-deps
-WORKDIR /app
-COPY services/community-recognition/package.json services/community-recognition/package-lock.json ./
-RUN npm ci --omit=dev --no-audit --no-fund
+# Community Recognition — PM1 per-service container.
+# Build context is the repository root:
+#   docker build -f services/community-recognition/Dockerfile -t osh/community-recognition:pm1 .
 
-FROM node:22-alpine AS build
+FROM node:22-alpine AS base
+RUN corepack enable
 WORKDIR /app
-COPY services/community-recognition/package.json services/community-recognition/package-lock.json ./
-RUN npm ci --no-audit --no-fund
-COPY services/community-recognition/tsconfig.json ./
-COPY services/community-recognition/src ./src
-RUN npm run build
+
+FROM base AS deps
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY packages/service-kit/package.json packages/service-kit/
+COPY services/community-recognition/package.json services/community-recognition/
+RUN pnpm install --frozen-lockfile --ignore-scripts \
+      --filter @osh/service-community-recognition... --filter @osh/service-kit...
+
+FROM deps AS build
+COPY packages/service-kit packages/service-kit
+COPY services/community-recognition services/community-recognition
+RUN pnpm --filter @osh/service-kit build \
+ && pnpm --filter @osh/service-community-recognition build
 
 FROM node:22-alpine AS runtime
 ENV NODE_ENV=production PORT=3000 SERVICE_NAME=community-recognition
 WORKDIR /app
 RUN addgroup -S osh && adduser -S osh -G osh
-COPY --from=prod-deps /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
-COPY services/community-recognition/package.json ./
+COPY --from=build --chown=osh:osh /app/node_modules ./node_modules
+COPY --from=build --chown=osh:osh /app/packages/service-kit ./packages/service-kit
+COPY --from=build --chown=osh:osh /app/services/community-recognition ./services/community-recognition
 USER osh
 EXPOSE 3000
 HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 \
   CMD wget -qO- "http://127.0.0.1:${PORT}/health" >/dev/null || exit 1
-CMD ["node", "dist/main.js"]
+CMD ["node", "services/community-recognition/dist/main.js"]
 ```
 
 **Database:** `community_recognition_db`
@@ -881,33 +941,40 @@ erDiagram
 
 ```dockerfile
 # services/mentor-network/Dockerfile
-# Build context: repository root
 
-FROM node:22-alpine AS prod-deps
-WORKDIR /app
-COPY services/mentor-network/package.json services/mentor-network/package-lock.json ./
-RUN npm ci --omit=dev --no-audit --no-fund
+# Mentor Network — PM1 per-service container.
+# Build context is the repository root:
+#   docker build -f services/mentor-network/Dockerfile -t osh/mentor-network:pm1 .
 
-FROM node:22-alpine AS build
+FROM node:22-alpine AS base
+RUN corepack enable
 WORKDIR /app
-COPY services/mentor-network/package.json services/mentor-network/package-lock.json ./
-RUN npm ci --no-audit --no-fund
-COPY services/mentor-network/tsconfig.json ./
-COPY services/mentor-network/src ./src
-RUN npm run build
+
+FROM base AS deps
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY packages/service-kit/package.json packages/service-kit/
+COPY services/mentor-network/package.json services/mentor-network/
+RUN pnpm install --frozen-lockfile --ignore-scripts \
+      --filter @osh/service-mentor-network... --filter @osh/service-kit...
+
+FROM deps AS build
+COPY packages/service-kit packages/service-kit
+COPY services/mentor-network services/mentor-network
+RUN pnpm --filter @osh/service-kit build \
+ && pnpm --filter @osh/service-mentor-network build
 
 FROM node:22-alpine AS runtime
 ENV NODE_ENV=production PORT=3000 SERVICE_NAME=mentor-network
 WORKDIR /app
 RUN addgroup -S osh && adduser -S osh -G osh
-COPY --from=prod-deps /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
-COPY services/mentor-network/package.json ./
+COPY --from=build --chown=osh:osh /app/node_modules ./node_modules
+COPY --from=build --chown=osh:osh /app/packages/service-kit ./packages/service-kit
+COPY --from=build --chown=osh:osh /app/services/mentor-network ./services/mentor-network
 USER osh
 EXPOSE 3000
 HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 \
   CMD wget -qO- "http://127.0.0.1:${PORT}/health" >/dev/null || exit 1
-CMD ["node", "dist/main.js"]
+CMD ["node", "services/mentor-network/dist/main.js"]
 ```
 
 **Database:** `mentor_network_db`
@@ -968,33 +1035,40 @@ erDiagram
 
 ```dockerfile
 # services/notification/Dockerfile
-# Build context: repository root
 
-FROM node:22-alpine AS prod-deps
-WORKDIR /app
-COPY services/notification/package.json services/notification/package-lock.json ./
-RUN npm ci --omit=dev --no-audit --no-fund
+# Notification — PM1 per-service container.
+# Build context is the repository root:
+#   docker build -f services/notification/Dockerfile -t osh/notification:pm1 .
 
-FROM node:22-alpine AS build
+FROM node:22-alpine AS base
+RUN corepack enable
 WORKDIR /app
-COPY services/notification/package.json services/notification/package-lock.json ./
-RUN npm ci --no-audit --no-fund
-COPY services/notification/tsconfig.json ./
-COPY services/notification/src ./src
-RUN npm run build
+
+FROM base AS deps
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY packages/service-kit/package.json packages/service-kit/
+COPY services/notification/package.json services/notification/
+RUN pnpm install --frozen-lockfile --ignore-scripts \
+      --filter @osh/service-notification... --filter @osh/service-kit...
+
+FROM deps AS build
+COPY packages/service-kit packages/service-kit
+COPY services/notification services/notification
+RUN pnpm --filter @osh/service-kit build \
+ && pnpm --filter @osh/service-notification build
 
 FROM node:22-alpine AS runtime
 ENV NODE_ENV=production PORT=3000 SERVICE_NAME=notification
 WORKDIR /app
 RUN addgroup -S osh && adduser -S osh -G osh
-COPY --from=prod-deps /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
-COPY services/notification/package.json ./
+COPY --from=build --chown=osh:osh /app/node_modules ./node_modules
+COPY --from=build --chown=osh:osh /app/packages/service-kit ./packages/service-kit
+COPY --from=build --chown=osh:osh /app/services/notification ./services/notification
 USER osh
 EXPOSE 3000
 HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 \
   CMD wget -qO- "http://127.0.0.1:${PORT}/health" >/dev/null || exit 1
-CMD ["node", "dist/main.js"]
+CMD ["node", "services/notification/dist/main.js"]
 ```
 
 **Database:** `notification_db`
@@ -1043,33 +1117,40 @@ erDiagram
 
 ```dockerfile
 # services/admin/Dockerfile
-# Build context: repository root
 
-FROM node:22-alpine AS prod-deps
-WORKDIR /app
-COPY services/admin/package.json services/admin/package-lock.json ./
-RUN npm ci --omit=dev --no-audit --no-fund
+# Admin — PM1 per-service container.
+# Build context is the repository root:
+#   docker build -f services/admin/Dockerfile -t osh/admin:pm1 .
 
-FROM node:22-alpine AS build
+FROM node:22-alpine AS base
+RUN corepack enable
 WORKDIR /app
-COPY services/admin/package.json services/admin/package-lock.json ./
-RUN npm ci --no-audit --no-fund
-COPY services/admin/tsconfig.json ./
-COPY services/admin/src ./src
-RUN npm run build
+
+FROM base AS deps
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY packages/service-kit/package.json packages/service-kit/
+COPY services/admin/package.json services/admin/
+RUN pnpm install --frozen-lockfile --ignore-scripts \
+      --filter @osh/service-admin... --filter @osh/service-kit...
+
+FROM deps AS build
+COPY packages/service-kit packages/service-kit
+COPY services/admin services/admin
+RUN pnpm --filter @osh/service-kit build \
+ && pnpm --filter @osh/service-admin build
 
 FROM node:22-alpine AS runtime
 ENV NODE_ENV=production PORT=3000 SERVICE_NAME=admin
 WORKDIR /app
 RUN addgroup -S osh && adduser -S osh -G osh
-COPY --from=prod-deps /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
-COPY services/admin/package.json ./
+COPY --from=build --chown=osh:osh /app/node_modules ./node_modules
+COPY --from=build --chown=osh:osh /app/packages/service-kit ./packages/service-kit
+COPY --from=build --chown=osh:osh /app/services/admin ./services/admin
 USER osh
 EXPOSE 3000
 HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 \
   CMD wget -qO- "http://127.0.0.1:${PORT}/health" >/dev/null || exit 1
-CMD ["node", "dist/main.js"]
+CMD ["node", "services/admin/dist/main.js"]
 ```
 
 **Database:** `admin_db`
@@ -1077,7 +1158,6 @@ CMD ["node", "dist/main.js"]
 | Table | Purpose |
 |---|---|
 | `AiSetting` | global AI limits: max tokens per user, temperature, USD limit |
-| `AiSettingAudit` | before/after of every settings change |
 | `AiUsage` | one metered AI call (feature, model, tokens, cost) |
 | `AiUsageDaily` | daily aggregate per feature |
 | `AdminSnapshot` | cached metrics (≤ 5 min old) |
@@ -1093,13 +1173,6 @@ erDiagram
     float usageLimitUsd
     string updatedById FK
     datetime updatedAt
-  }
-  AiSettingAudit {
-    string id PK
-    string adminId FK
-    json before
-    json after
-    datetime createdAt
   }
   AiUsage {
     string id PK
@@ -1148,7 +1221,7 @@ erDiagram
   }
 ```
 
-**Cross-service IDs:** `AiSetting.updatedById`, `AiSettingAudit.adminId`, `AiUsage.userId` → Account.
+**Cross-service IDs:** `AiSetting.updatedById`, `AiUsage.userId` → Account.
 **Connection:** `postgresql://osh:***@postgres:5432/admin_db`
 **Host port:** `4110`
 
@@ -1156,23 +1229,28 @@ erDiagram
 
 ## 6. One `docker compose up` for the whole design
 
-Target layout at the repository root (same idea as the current `docker-compose.yml`):
+The real file is **`docker-compose.services.yml`** at the repository root. It starts Postgres and the 10 services, each with its own `DATABASE_URL`.
+
+```bash
+docker compose -f docker-compose.services.yml up --build
+```
+
+Shape of the file (the real one lists all 10 services the same way):
 
 ```yaml
-name: osh-pm1
+name: osh-services
 
 services:
   postgres:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: osh
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-osh_pm1_local}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-osh_services_local}
       POSTGRES_DB: osh
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./db/init:/docker-entrypoint-initdb.d:ro
-    ports:
-      - "5433:5432"
+    ports: ["5433:5432"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U osh -d osh"]
       interval: 5s
@@ -1184,135 +1262,62 @@ services:
       context: .
       dockerfile: services/account/Dockerfile
     environment:
-      DATABASE_URL: postgresql://osh:${POSTGRES_PASSWORD:-osh_pm1_local}@postgres:5432/account_db
+      DATABASE_URL: postgresql://osh:${POSTGRES_PASSWORD:-osh_services_local}@postgres:5432/account_db
       PORT: 3000
     ports: ["4101:3000"]
     depends_on:
-      postgres: { condition: service_healthy }
-
-  developer-profile:
-    build:
-      context: .
-      dockerfile: services/developer-profile/Dockerfile
-    environment:
-      DATABASE_URL: postgresql://osh:${POSTGRES_PASSWORD:-osh_pm1_local}@postgres:5432/developer_profile_db
-      PORT: 3000
-    ports: ["4102:3000"]
-    depends_on:
-      postgres: { condition: service_healthy }
-
-  issue-search:
-    build:
-      context: .
-      dockerfile: services/issue-search/Dockerfile
-    environment:
-      DATABASE_URL: postgresql://osh:${POSTGRES_PASSWORD:-osh_pm1_local}@postgres:5432/issue_search_db
-      PORT: 3000
-    ports: ["4103:3000"]
-    depends_on:
-      postgres: { condition: service_healthy }
-
-  contribution-tracking:
-    build:
-      context: .
-      dockerfile: services/contribution-tracking/Dockerfile
-    environment:
-      DATABASE_URL: postgresql://osh:${POSTGRES_PASSWORD:-osh_pm1_local}@postgres:5432/contribution_tracking_db
-      PORT: 3000
-    ports: ["4104:3000"]
-    depends_on:
-      postgres: { condition: service_healthy }
-
-  onboarding-learning:
-    build:
-      context: .
-      dockerfile: services/onboarding-learning/Dockerfile
-    environment:
-      DATABASE_URL: postgresql://osh:${POSTGRES_PASSWORD:-osh_pm1_local}@postgres:5432/onboarding_learning_db
-      PORT: 3000
-    ports: ["4105:3000"]
-    depends_on:
-      postgres: { condition: service_healthy }
-
-  ai-guide:
-    build:
-      context: .
-      dockerfile: services/ai-guide/Dockerfile
-    environment:
-      DATABASE_URL: postgresql://osh:${POSTGRES_PASSWORD:-osh_pm1_local}@postgres:5432/ai_guide_db
-      PORT: 3000
-    ports: ["4106:3000"]
-    depends_on:
-      postgres: { condition: service_healthy }
-
-  community-recognition:
-    build:
-      context: .
-      dockerfile: services/community-recognition/Dockerfile
-    environment:
-      DATABASE_URL: postgresql://osh:${POSTGRES_PASSWORD:-osh_pm1_local}@postgres:5432/community_recognition_db
-      PORT: 3000
-    ports: ["4107:3000"]
-    depends_on:
-      postgres: { condition: service_healthy }
-
-  mentor-network:
-    build:
-      context: .
-      dockerfile: services/mentor-network/Dockerfile
-    environment:
-      DATABASE_URL: postgresql://osh:${POSTGRES_PASSWORD:-osh_pm1_local}@postgres:5432/mentor_network_db
-      PORT: 3000
-    ports: ["4108:3000"]
-    depends_on:
-      postgres: { condition: service_healthy }
-
-  notification:
-    build:
-      context: .
-      dockerfile: services/notification/Dockerfile
-    environment:
-      DATABASE_URL: postgresql://osh:${POSTGRES_PASSWORD:-osh_pm1_local}@postgres:5432/notification_db
-      PORT: 3000
-    ports: ["4109:3000"]
-    depends_on:
-      postgres: { condition: service_healthy }
-
-  admin:
-    build:
-      context: .
-      dockerfile: services/admin/Dockerfile
-    environment:
-      DATABASE_URL: postgresql://osh:${POSTGRES_PASSWORD:-osh_pm1_local}@postgres:5432/admin_db
-      PORT: 3000
-    ports: ["4110:3000"]
-    depends_on:
-      postgres: { condition: service_healthy }
-
-volumes:
-  pgdata:
+      postgres:
+        condition: service_healthy
 ```
 
-> `db/init` holds the `00-databases.sql` from §4.1. Each service's own migrations create its tables after the databases exist; no service runs another service's migration.
+**Ports and databases**
 
-**Run**
+| Service | Host port | Database |
+|---|---|---|
+| account | 4101 | `account_db` |
+| developer-profile | 4102 | `developer_profile_db` |
+| issue-search | 4103 | `issue_search_db` |
+| contribution-tracking | 4104 | `contribution_tracking_db` |
+| onboarding-learning | 4105 | `onboarding_learning_db` |
+| ai-guide | 4106 | `ai_guide_db` |
+| community-recognition | 4107 | `community_recognition_db` |
+| mentor-network | 4108 | `mentor_network_db` |
+| notification | 4109 | `notification_db` |
+| admin | 4110 | `admin_db` |
+
+**Sprint 1 subset**
 
 ```bash
-docker compose up --build
+docker compose -f docker-compose.services.yml up -d --build \
+  postgres account developer-profile admin notification
 ```
 
 **Verify**
 
 ```bash
-curl -s localhost:4101/health   # Account
-curl -s localhost:4102/health   # Developer Profile
-# ... 4103 ... 4110
-psql "postgresql://osh:osh_pm1_local@localhost:5433/postgres" -c "\l"
+for p in 4101 4102 4103 4104 4105 4106 4107 4108 4109 4110; do
+  curl -s "localhost:$p/health"; echo
+done
+
+docker exec osh-services-postgres-1 psql -U osh -d osh -c "\l"
 ```
 
-Each `/health` returns the service name, its own database name, and `databaseUp: true`. The `\l` output must show the ten databases.
+Each `/health` returns the service, its own database and the table count. The expected result of a full run:
 
-**Health checks:** Postgres uses `pg_isready`; each service uses the `HEALTHCHECK` in its Dockerfile (HTTP `/health`, which also runs `SELECT 1`). Compose starts a service only after Postgres is healthy.
+| Port | Service | Database | Tables |
+|---|---|---|---|
+| 4101 | account | `account_db` | 2 |
+| 4102 | developer-profile | `developer_profile_db` | 6 |
+| 4103 | issue-search | `issue_search_db` | 3 |
+| 4104 | contribution-tracking | `contribution_tracking_db` | 5 |
+| 4105 | onboarding-learning | `onboarding_learning_db` | 3 |
+| 4106 | ai-guide | `ai_guide_db` | 2 |
+| 4107 | community-recognition | `community_recognition_db` | 4 |
+| 4108 | mentor-network | `mentor_network_db` | 4 |
+| 4109 | notification | `notification_db` | 2 |
+| 4110 | admin | `admin_db` | 6 |
+
+**Health checks:** Postgres uses `pg_isready`; each service uses the `HEALTHCHECK` in its Dockerfile (HTTP `/health`, which also runs `SELECT 1`). Compose starts a service only after Postgres is healthy. `docker compose ps` shows all 10 services `healthy`.
 
 ---
 
@@ -1334,7 +1339,7 @@ Sprint 1 builds the foundation: accounts, profile, CV, AI settings edit, and not
 - [ ] The tables owned by Account and Developer Profile are populated by the seed (users, profiles, CV, AI settings, notifications).
 - [ ] Each container answers `/health` with its own database name.
 - [ ] No Sprint 1 service connects to another service's database.
-- [ ] `docker compose up --build` starts 4 services + Postgres (the other 6 can be added in their sprints).
+- [ ] `docker compose -f docker-compose.services.yml up -d --build postgres account developer-profile admin notification` starts 4 services + Postgres (the other 6 start with the full command).
 
 **A note on Sprint 1 size:** the shipped Sprint 1 also has FR-13.3 (notifications) and FR-20.1 (AI settings) as *partial* stories. That is why Notification and Admin are in the Sprint 1 set even though their full features land in Sprint 4.
 
@@ -1357,11 +1362,11 @@ This is the honest part: the design above is **per service**, the repository is 
 | Community Recognition | `modules/achievements`, `modules/public-profile`, `modules/community` | `api` | `Badge`, `UserBadge`, `Streak`, `PublicProfile` |
 | Mentor Network | `modules/outreach` | `api` | `OutreachRequest`, `OutreachConversation`, `OutreachMessage`, `BlockedUser` |
 | Notification | `modules/notifications`, `infra/email`, `jobs` | `api` + `worker` (digest) | `Notification`, `NotificationPreference` |
-| Admin | `modules/admin`, `modules/ai` | `api` | `AiSetting`, `AiSettingAudit`, `AiUsage`, `AiUsageDaily`, `AdminSnapshot`, `JobRun`, `SyncState` |
+| Admin | `modules/admin`, `modules/ai` | `api` | `AiSetting`, `AiUsage`, `AiUsageDaily`, `AdminSnapshot`, `JobRun`, `SyncState` |
 
 **What this means**
 
-- The 10 Dockerfiles are the **PM1 target**: one container per service.
+- The 10 Dockerfiles are **implemented**: one container per service (`services/<name>/Dockerfile`).
 - The **browser/web** container is not one of the 10 services. It stays as it is (`apps/web/Dockerfile`, Next.js) and calls the API through the BFF proxy; the 10 services sit behind it.
 - Today the same 10 modules run inside **one** `api` image because the project is a modular monolith (`docs/engineering/architecture.md` §11, ADR 0003). Splitting it is a deployment change, not a code rewrite: each module already owns its tables and exposes its interface through a controller.
 - The current `docker compose up --build` still satisfies PM1 Part B (web, api, worker, Postgres, Redis, health checks). The per-service files here satisfy the “one container per service” reading of the design.
@@ -1392,7 +1397,7 @@ This is the honest part: the design above is **per service**, the repository is 
 
 ## 10. What is not covered
 
-- **Business endpoints.** The Dockerfiles are the deployment shape, not 10 new codebases. The real endpoints are the ones already documented in `docs/API.md` and `docs/Sprints/sprintN/01-api.md`.
+- **Business endpoints in the service containers.** The per-service containers expose `/health`, `/meta` and `/db/tables` and are wired to their own database. The product endpoints remain in the modular monolith (`apps/api/src/modules`) and are documented in `docs/API.md`. This is a deployment layer, not a second implementation of the product.
 - **GHCR publishing per service.** The current workflow publishes `web`, `api`, `worker`; a 10-image matrix is a one-line expansion of `.github/workflows/docker.yml` when the split happens.
 - **RLS.** It is defined in `supabase/` for the current single database. A real split would move the policies with the tables.
 - **Ten Postgres servers.** One server with ten databases is the chosen trade-off. If the reviewer wants one server per service, only the `postgres` block in section 6 changes.
@@ -1404,7 +1409,7 @@ This is the honest part: the design above is **per service**, the repository is 
 
 | PM1 requirement | Where it is satisfied |
 |---|---|
-| Multi-stage Dockerfile **per service** | §5.1–§5.10 (10 Dockerfiles, 3 stages each) |
+| Multi-stage Dockerfile **per service** | §5.1–§5.10 (10 Dockerfiles, 4 stages each) |
 | One container per service | §6 (10 services + Postgres) |
 | Whole system with one command | §6, `docker compose up --build` |
 | Health check per service | §3 (Dockerfile `HEALTHCHECK`), §6 (Postgres + service health) |
