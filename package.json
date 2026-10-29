@@ -7,14 +7,14 @@
     "node": ">=22"
   },
   "scripts": {
-    "postinstall": "pnpm --filter @osh/contracts build",
+    "postinstall": "pnpm --filter @osh/contracts build && pnpm --filter @osh/service-kit build",
     "dev": "pnpm --parallel --filter @osh/api --filter @osh/web dev",
     "dev:api": "pnpm --filter @osh/api dev",
     "dev:web": "pnpm --filter @osh/web dev",
     "dev:worker": "pnpm --filter @osh/api dev:worker",
     "build": "pnpm --filter @osh/contracts build && pnpm --filter @osh/api build && pnpm --filter @osh/web build",
     "lint": "pnpm -r --if-present lint",
-    "typecheck": "pnpm -r --if-present typecheck",
+    "typecheck": "pnpm --filter @osh/contracts build && pnpm --filter @osh/service-kit build && pnpm -r --if-present typecheck",
     "test": "pnpm --filter @osh/contracts test && pnpm --filter @osh/api test && pnpm --filter @osh/web test",
     "verify:env": "node scripts/verify-env.mjs",
     "check:secrets": "node scripts/check-secrets.mjs",
@@ -28,7 +28,11 @@
     "docker:up": "bash scripts/docker-up.sh",
     "docker:down": "sg docker -c 'docker compose down'",
     "services:up": "bash scripts/dev-services.sh up",
-    "services:down": "bash scripts/dev-services.sh down"
+    "services:down": "bash scripts/dev-services.sh down",
+    "pm1:build": "docker compose -f docker-compose.services.yml build",
+    "pm1:up": "docker compose -f docker-compose.services.yml up -d",
+    "pm1:down": "docker compose -f docker-compose.services.yml down",
+    "pm1:logs": "docker compose -f docker-compose.services.yml logs -f"
   },
   "devDependencies": {
     "@eslint/js": "9.37.0",
